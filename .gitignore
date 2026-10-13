@@ -1,0 +1,7 @@
+.tools/
+.run/
+**/target/
+**/node_modules/
+web/dist/
+.env
+*.log

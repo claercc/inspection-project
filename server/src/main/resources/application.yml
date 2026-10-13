@@ -1,0 +1,11 @@
+server:
+  address: ${SERVER_BIND:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+spring:
+  application:
+    name: inspection-console
+  mvc:
+    problemdetails:
+      enabled: true
+    async:
+      request-timeout: 0

@@ -1,0 +1,35 @@
+name: inspection-console
+services:
+  broker:
+    image: eclipse-mosquitto:2.0.22
+    volumes:
+      - ./deploy/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    restart: unless-stopped
+  robot:
+    build: { context: ., dockerfile: deploy/java.Dockerfile, target: robot }
+    environment:
+      MODBUS_PORT: ${MODBUS_PORT:-1502}
+      MODBUS_UNIT: ${MODBUS_UNIT:-1}
+    restart: unless-stopped
+  edge:
+    build: { context: ., dockerfile: deploy/java.Dockerfile, target: edge }
+    environment:
+      DEVICE_ID: ${DEVICE_ID:-robot-001}
+      MQTT_URL: ${MQTT_URL:-tcp://broker:1883}
+      MODBUS_HOST: ${MODBUS_HOST:-robot}
+      MODBUS_PORT: ${MODBUS_PORT:-1502}
+      MODBUS_UNIT: ${MODBUS_UNIT:-1}
+    depends_on: [broker, robot]
+    restart: unless-stopped
+  server:
+    build: { context: ., dockerfile: deploy/java.Dockerfile, target: server }
+    environment:
+      DEVICE_ID: ${DEVICE_ID:-robot-001}
+      MQTT_URL: ${MQTT_URL:-tcp://broker:1883}
+    depends_on: [broker]
+    restart: unless-stopped
+  web:
+    build: { context: ., dockerfile: deploy/web.Dockerfile }
+    ports: ["127.0.0.1:${WEB_PORT:-8088}:80"]
+    depends_on: [server]
+    restart: unless-stopped
