@@ -1,120 +1,237 @@
 package demo.inspection.server.integration;
 
 import demo.inspection.mqtt.MqttLink;
+import demo.inspection.protocol.CommandType;
 import demo.inspection.protocol.Messages;
-import demo.inspection.protocol.Messages.*;
+import demo.inspection.protocol.Messages.Command;
+import demo.inspection.protocol.Messages.Result;
+import demo.inspection.protocol.Messages.Telemetry;
+import demo.inspection.server.device.domain.CommandHistory;
+import demo.inspection.server.device.domain.CommandHistory.CommandView;
+import demo.inspection.server.device.domain.CommandPolicy;
+import demo.inspection.server.device.domain.CommandRejectedException;
+import demo.inspection.server.device.domain.CommandRejectedException.Reason;
+import demo.inspection.server.device.domain.DeviceTelemetry;
 import jakarta.annotation.PreDestroy;
-import org.springframework.http.HttpStatus;
+import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.Objects;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-import java.time.Instant;
-import java.util.*;
 
+/**
+ * 协调 MQTT 消息与设备规则，向 HTTP/SSE 提供状态快照。
+ * 状态读写使用同一对象锁；消息发布单独排序，避免等待网络应答时阻塞结果接收。
+ */
 @Service
 public class ConsoleService {
-    public record CommandView(Command command, String status, String message, Instant updatedAt) {}
-    public record Diagnostic(Instant timestamp, String direction, String protocol, String commandId, String summary) {}
-    public record State(String deviceId, boolean simulated, boolean mqttConnected, boolean online,
-                        boolean stale, String connectionStatus, Instant lastReceivedAt, Telemetry telemetry,
-                        List<CommandView> commands, List<Diagnostic> diagnostics) {}
+
+    private static final int DIAGNOSTIC_LIMIT = 100;
+
+    public record Diagnostic(
+        Instant timestamp,
+        String direction,
+        String protocol,
+        String commandId,
+        String summary
+    ) {}
+
+    public record State(
+        String deviceId,
+        boolean simulated,
+        boolean mqttConnected,
+        boolean online,
+        boolean stale,
+        String connectionStatus,
+        Instant lastReceivedAt,
+        String telemetryTopic,
+        Telemetry telemetry,
+        List<CommandView> commands,
+        List<Diagnostic> diagnostics
+    ) {}
+
     private final String deviceId = System.getenv().getOrDefault("DEVICE_ID", "robot-001");
-    private final MqttLink mqtt;
-    private Telemetry telemetry;
-    private Instant receivedAt;
-    private final LinkedHashMap<String, CommandView> commands = new LinkedHashMap<>();
+    private final DeviceTelemetry deviceTelemetry = new DeviceTelemetry(deviceId);
+    private final CommandHistory commandHistory = new CommandHistory();
     private final Deque<Diagnostic> diagnostics = new ArrayDeque<>();
+    private final MqttLink mqtt;
+    // 该锁只负责命令接受与发布顺序；接收回调不会获取它，避免相互等待 PUBACK。
+    private final Object commandPublicationLock = new Object();
 
     public ConsoleService() throws Exception {
-        mqtt = new MqttLink(System.getenv().getOrDefault("MQTT_URL", "tcp://127.0.0.1:1883"),
-                "inspection-server-" + deviceId,
-                new String[]{Messages.topic(deviceId, "telemetry"), Messages.topic(deviceId, "results")}, this::receive);
+        String brokerUrl = System.getenv().getOrDefault("MQTT_URL", "tcp://127.0.0.1:1883");
+        String[] subscriptions = {
+            Messages.topic(deviceId, "telemetry"),
+            Messages.topic(deviceId, "results"),
+        };
+        mqtt = new MqttLink(
+            brokerUrl,
+            "inspection-server-" + deviceId,
+            subscriptions,
+            this::receive
+        );
         mqtt.start();
     }
+
     private synchronized void receive(String topic, String json) {
         try {
-            if (topic.endsWith("/telemetry")) {
-                Telemetry next = Messages.JSON.readValue(json, Telemetry.class);
-                if (!deviceId.equals(next.deviceId()) || next.capturedAt() == null) return;
-                boolean changed = telemetry == null || next.robotOnline() != telemetry.robotOnline()
-                        || !next.runState().equals(telemetry.runState());
-                telemetry = next; receivedAt = Instant.now();
-                if (changed) log("EDGE → SERVER", "MQTT / FC03", null,
-                        next.robotOnline() ? "Modbus readback: " + next.runState() : "Device offline: " + next.error());
-            } else {
-                Result r = Messages.JSON.readValue(json, Result.class);
-                CommandView previous = commands.get(r.commandId());
-                if (previous == null || !deviceId.equals(r.deviceId()) || !previous.command().type().equals(r.type())
-                        || !Set.of("SUCCEEDED", "FAILED", "RESULT_UNKNOWN").contains(r.status())) return;
-                // Duplicate replies cannot overwrite an established terminal result.
-                if (Set.of("SUCCEEDED", "FAILED").contains(previous.status())) return;
-                commands.put(r.commandId(), new CommandView(previous.command(), r.status(), r.message(), Instant.now()));
-                if (r.telemetry() != null) { telemetry = r.telemetry(); receivedAt = Instant.now(); }
-                log("EDGE → SERVER", "MQTT result", r.commandId(), r.status() + ": " + r.message());
+            if (topic.equals(Messages.topic(deviceId, "telemetry"))) {
+                receiveTelemetry(topic, Messages.JSON.readValue(json, Telemetry.class));
+            } else if (topic.equals(Messages.topic(deviceId, "results"))) {
+                receiveResult(topic, Messages.JSON.readValue(json, Result.class));
             }
-        } catch (Exception e) { log("IN", "MQTT", null, "Invalid payload: " + e.getMessage()); }
+        } catch (Exception exception) {
+            log("IN", "MQTT", null, "Invalid payload: " + exception.getMessage());
+        }
     }
+
+    private void receiveTelemetry(String topic, Telemetry next) {
+        Telemetry previous = deviceTelemetry.latest();
+        if (!deviceTelemetry.accept(next, topic, Instant.now())) {
+            return;
+        }
+        boolean stateChanged =
+            previous == null ||
+            next.robotOnline() != previous.robotOnline() ||
+            !Objects.equals(next.runState(), previous.runState());
+        if (stateChanged) {
+            String summary = next.robotOnline()
+                ? "Modbus readback: " + next.runState()
+                : "Device offline: " + next.error();
+            log("EDGE → SERVER", "MQTT / FC03", null, summary);
+        }
+    }
+
+    private void receiveResult(String topic, Result result) {
+        if (!commandHistory.accept(result, Instant.now())) {
+            return;
+        }
+        // 迟到的命令确认仍需记账；其中的旧遥测由 DeviceTelemetry 过滤，不能回退设备状态。
+        deviceTelemetry.accept(result.telemetry(), topic, Instant.now());
+        log(
+            "EDGE → SERVER",
+            "MQTT result",
+            result.commandId(),
+            result.status() + ": " + result.message()
+        );
+    }
+
+    /** 以同一时刻计算过期和在线状态，返回供页面展示的快照。 */
     public synchronized State state() {
-        boolean stale = receivedAt == null || receivedAt.isBefore(Instant.now().minusSeconds(3))
-                || telemetry == null || telemetry.capturedAt().isBefore(Instant.now().minusSeconds(3));
+        Instant now = Instant.now();
         boolean connected = mqtt.isConnected();
-        boolean online = connected && !stale && telemetry != null && telemetry.robotOnline();
-        String status = !connected ? "BROKER_OFFLINE" : stale ? "EDGE_STALE" : !online ? "ROBOT_OFFLINE" : "ONLINE";
-        var history = new ArrayList<>(commands.values()); Collections.reverse(history);
-        return new State(deviceId, true, connected, online, stale, status, receivedAt, telemetry,
-                history, new ArrayList<>(diagnostics));
+        boolean stale = deviceTelemetry.isStale(now);
+        boolean online = deviceTelemetry.isOnline(connected, now);
+        return new State(
+            deviceId,
+            true,
+            connected,
+            online,
+            stale,
+            connectionStatus(connected, stale, online),
+            deviceTelemetry.receivedAt(),
+            deviceTelemetry.topic(),
+            deviceTelemetry.latest(),
+            commandHistory.newestFirst(),
+            new ArrayList<>(diagnostics)
+        );
     }
+
+    private String connectionStatus(boolean connected, boolean stale, boolean online) {
+        if (!connected) {
+            return "BROKER_OFFLINE";
+        }
+        if (stale) {
+            return "EDGE_STALE";
+        }
+        if (!online) {
+            return "ROBOT_OFFLINE";
+        }
+        return "ONLINE";
+    }
+
     public CommandView issue(String type) {
-        Command c;
-        synchronized (this) {
-            if (!Set.of("START", "STOP").contains(type == null ? "" : type))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type must be START or STOP");
-            if (!mqtt.isConnected()) throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "MQTT Broker offline");
-            // START requires current state; STOP remains available for uncertain / offline conditions.
-            if ("START".equals(type) && !state().online())
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Device state is unavailable; wait for fresh Modbus telemetry");
-            if (commands.values().stream().anyMatch(view -> Set.of("PENDING", "SENT").contains(view.status())))
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Another command is awaiting feedback");
-            if ("START".equals(type) && telemetry != null && "RUNNING".equals(telemetry.runState()))
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Robot is already running");
-            Instant now = Instant.now();
-            c = new Command(UUID.randomUUID().toString(), deviceId, type, Map.of(), now, now.plusSeconds(8));
-            commands.put(c.commandId(), new CommandView(c, "PENDING", "Preparing MQTT publication", now));
-        }
-        // Publish outside the monitor: a result can arrive while QoS1 awaits PUBACK.
+        CommandType commandType;
         try {
-            mqtt.publish(Messages.topic(deviceId, "commands"), c);
-            synchronized (this) {
-                if ("PENDING".equals(commands.get(c.commandId()).status()))
-                    commands.put(c.commandId(), new CommandView(c, "SENT", "MQTT QoS1 acknowledged; waiting for device readback", Instant.now()));
-                log("SERVER → EDGE", "MQTT QoS1 retain=false", c.commandId(), type + " sent");
-            }
-        } catch (Exception e) {
-            synchronized (this) {
-                if ("PENDING".equals(commands.get(c.commandId()).status()))
-                    commands.put(c.commandId(), new CommandView(c, "RESULT_UNKNOWN", "Publication acknowledgement unavailable: " + e.getMessage(), Instant.now()));
-                log("SERVER → EDGE", "MQTT", c.commandId(), "RESULT_UNKNOWN: " + e.getMessage());
-            }
+            commandType = CommandType.parse(type);
+        } catch (IllegalArgumentException exception) {
+            throw new CommandRejectedException(Reason.INVALID_REQUEST, exception.getMessage());
         }
-        synchronized (this) {
-            while (commands.size() > 100) commands.remove(commands.keySet().iterator().next());
-            return commands.get(c.commandId());
+        // 多个 HTTP 请求可能并发到达，将准入与发布串行化，防止后接受的 STOP 先于 START 发出。
+        synchronized (commandPublicationLock) {
+            Command command = prepareCommand(commandType);
+            // 等待 PUBACK 时释放状态锁，让 MQTT 接收线程能够及时登记设备结果。
+            publishCommand(command);
+            synchronized (this) {
+                return commandHistory.get(command.commandId());
+            }
         }
     }
+
+    private synchronized Command prepareCommand(CommandType commandType) {
+        Instant now = Instant.now();
+        boolean brokerConnected = mqtt.isConnected();
+        CommandPolicy.validate(
+            commandType,
+            brokerConnected,
+            deviceTelemetry.isOnline(brokerConnected, now),
+            deviceTelemetry.isRunning(),
+            commandHistory.hasPendingCommand(),
+            commandHistory.hasPendingStop()
+        );
+        return commandHistory.create(deviceId, commandType, now);
+    }
+
+    private void publishCommand(Command command) {
+        try {
+            mqtt.publish(Messages.topic(deviceId, "commands"), command);
+            synchronized (this) {
+                commandHistory.markPublished(command.commandId(), Instant.now());
+                log(
+                    "SERVER → EDGE",
+                    "MQTT QoS1 retain=false",
+                    command.commandId(),
+                    command.type() + " sent"
+                );
+            }
+        } catch (Exception exception) {
+            synchronized (this) {
+                commandHistory.markPublicationUnknown(
+                    command.commandId(),
+                    exception.getMessage(),
+                    Instant.now()
+                );
+                log(
+                    "SERVER → EDGE",
+                    "MQTT",
+                    command.commandId(),
+                    "RESULT_UNKNOWN: " + exception.getMessage()
+                );
+            }
+        }
+    }
+
     @Scheduled(fixedDelay = 500)
     public synchronized void expire() {
-        Instant now = Instant.now();
-        commands.replaceAll((id, view) -> {
-            if (Set.of("SENT", "PENDING").contains(view.status()) && !view.command().expiresAt().isAfter(now)) {
-                log("SERVER", "timeout", id, "Device result missing; no automatic resend");
-                return new CommandView(view.command(), "RESULT_UNKNOWN", "No device feedback before deadline; inspect state before manual recovery", now);
-            }
-            return view;
-        });
+        for (String commandId : commandHistory.expire(Instant.now())) {
+            log("SERVER", "timeout", commandId, "Device result missing; no automatic resend");
+        }
     }
-    private void log(String direction, String protocol, String id, String summary) {
-        diagnostics.addFirst(new Diagnostic(Instant.now(), direction, protocol, id, summary));
-        while (diagnostics.size() > 100) diagnostics.removeLast();
+
+    private void log(String direction, String protocol, String commandId, String summary) {
+        diagnostics.addFirst(
+            new Diagnostic(Instant.now(), direction, protocol, commandId, summary)
+        );
+        while (diagnostics.size() > DIAGNOSTIC_LIMIT) {
+            diagnostics.removeLast();
+        }
     }
-    @PreDestroy public void close() { mqtt.close(); }
+
+    @PreDestroy
+    public void close() {
+        mqtt.close();
+    }
 }

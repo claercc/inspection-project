@@ -1,13 +1,33 @@
 # 开发进度与接续上下文
 
-更新时间：2026-10-11（Asia/Singapore）
+更新时间：2026-11-02（Asia/Singapore）
+
+## 最新交付：代码可读性与质量检查
+
+- 展开 Java、Vue、JavaScript、CSS 和 Maven 配置；统一 Prettier/EditorConfig 与换行规则，配置编辑器保存格式化。
+- 监控首页按实际面板拆分组件，状态文案与显示工具独立；HTTP/SSE 会话仍由原 API/composable 管理。
+- server 提取 CommandPolicy、CommandHistory、DeviceTelemetry 与 DeviceEventStream；edge 提取 DeviceCommandHandler、RobotDriver 与 ModbusRobotDriver；模拟器点表使用具名常量。
+- 修复待确认 START 阻挡 STOP、迟到遥测覆盖较新状态、写入成功后读回异常被判为确定失败的问题。
+- 新增 ESLint 与 Maven Checkstyle，构建脚本执行检查；24 个 Java 测试、22 项独立进程端到端检查、Vue 生产构建均通过。
+- 阅读入口与命令见 [CODE_GUIDE.md](CODE_GUIDE.md)，验证证据见 [VERIFICATION.md](VERIFICATION.md)。以下保留此前学习单元与长期规划记录；未自动进入后续业务阶段。
+
+## 2026-10-16 交付：温度来源核对（学习单元 3）
+
+- 用户认为画面无法说明数据真假，确认先实现温度来源抽屉与独立核对。本轮只推进这个单元。
+- 温度卡片改为「模拟设备温度」；抽屉展示实际 FC03 寄存器、原值 × 0.1、sampleId、采集端、连接地址、时间、实际 MQTT 主题和转发后的遥测 JSON。
+- edge 在成功读取时附加 SamplingEvidence；失败时 evidence=null。server 将实际接收 topic 与样本一同保存，可能是 telemetry 或 results 主题。前端锁定样本供核对，同时保留实时可用性提示。
+- 新增独立脚本 `scripts/observe-telemetry.mjs`，直接订阅 MQTT，支持 JSONL 输出；不访问 HTTP/SSE，不发布设备控制。
+- 已执行 Java clean verify（5 个 TCP 测试通过）、Vue 生产构建、20 项端到端检查。新报告为 `temperature-source-report.json`；保留旧报告。标准演示服务已用新产物重启，http://127.0.0.1:8088 为 ONLINE；独立脚本单次订阅验证通过。
+- 阅读与操作见 [LEARNING_PROGRESS.md](LEARNING_PROGRESS.md)、[DATA_PROVENANCE.md](DATA_PROVENANCE.md)。完成后停止，等待用户反馈。
+- 仍未实现：场景化温度测点模型、数据库历史、硬件认证、任务、摄像机和公网发布；本轮没有迁移后端分层。
 
 ## 当前协作方式：一次一个学习单元
 
 - 新版 `codex-inspection-project-prompt.md` 替代上一轮自动推进阶段的要求。
-- 当前只完成学习单元 1：检查已有实现、梳理模块/分层/学习路线、记录缺口；讲解后停止，等待用户反馈。
-- 本次仅更新本文件、ARCHITECTURE.md 和新增 LEARNING_PROGRESS.md。没有新增功能、重构、升级依赖、提交或推送。
-- 本次只读 GET `/api/state` 返回 `robot-001 / ONLINE / simulated=true`；未发送控制命令。以下构建和测试结果是上一轮已有验证，不是本轮重跑。
+- 2026-10-15 用户改为前端视觉/按钮优先：本轮完成目录骨架与监控首页，后续逐按钮向后端接入，未实现业务只建文件夹。
+- 单元 2 前端已分开布局、视图、API、composable、配置与样式；后端预留分层目录。单元 3 仅补采样来源契约和实际 MQTT 主题，不改变控制语义。
+- 目录清单与按钮顺序见 FRONTEND_FIRST_PLAN.md；prepare-structure.ps1 可恢复 62 个规划目录。
+- 单元 2 端到端回归 15 项通过；单元 3 增加来源与独立核对后为 20 项。原阶段 A 和 frontend-workspace 报告与截图保留。
 - 学习进度与功能进度分开：代码已存在、测试通过，不意味着用户已确认理解。
 
 ## 当前阶段 A：本地闭环已交付，容器运行待验收
@@ -26,7 +46,7 @@
 ## 已执行验证
 
 - `powershell -ExecutionPolicy Bypass -File scripts/build.ps1`：最终 Java 17 clean verify，全部模块 SUCCESS，5 个真实 TCP 测试全部通过；Vue 生产构建通过。
-- `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`：12 项实际端到端检查全部 PASS，含真实 Chrome 按钮、SSE、重复投递、离线/恢复、结果未知与 Broker 重连。
+- `$env:VERIFICATION_PREFIX='temperature-source'; powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`：最新 20 项实际端到端检查全部 PASS，含真实 Chrome 按钮、来源样本独立核对、SSE、重复投递、离线/恢复、结果未知与 Broker 重连。
 - `scripts/start.ps1 -SkipBuild`：标准演示栈 ONLINE，START/STOP 均经 FC03 确认。
 - `scripts/stop.ps1`：5 个进程关闭，Web 端口关闭；随后再次启动演示栈。
 - Compose `config --quiet`：通过；容器运行未验证，原因是本机 Docker 引擎未运行。
@@ -48,21 +68,21 @@ powershell -ExecutionPolicy Bypass -File scripts/verify.ps1
 powershell -ExecutionPolicy Bypass -File scripts/stop.ps1
 ```
 
-阶段 A 本地固定端口：1883 / 1502 / 8080 / 8088。测试固定端口：18883 / 11502 / 18080 / 18088。`.run/` 存进程身份和日志，`.tools/` 存工具/依赖缓存；两者忽略提交。npm 锁文件已生成并保留。交接提示词保持原样；工作区仍没有初始化 Git。
+阶段 A 本地固定端口：1883 / 1502 / 8080 / 8088。测试固定端口：18883 / 11502 / 18080 / 18088。`.run/` 存进程身份和日志，`.tools/` 存工具/依赖缓存；两者忽略提交。npm 锁文件已生成并保留。交接提示词保持原样；当前已存在 Git 仓库，本轮未初始化、提交或推送。
 
-下一次先读新版提示词、LEARNING_PROGRESS.md、本文件和 ARCHITECTURE.md。不要自动进入 B 或重做 A。建议下一单元只提取在线/过期领域规则；是否进入下一单元由用户阅读后的反馈决定。
+下一次先读用户最新要求、LEARNING_PROGRESS.md 与 DATA_PROVENANCE.md。等待温度来源单元的阅读反馈，再决定完善场景模型或进入「新建巡检任务」表单；不自动进入 B。
 
-## 临时实现与分层待办（本轮未改代码）
+## 临时实现与分层待办（尚未批量迁移）
 
 | 当前实现 | 缺口 | 处理时机 |
 | --- | --- | --- |
-| integration/ConsoleService 同时处理 HTTP 异常、规则、MQTT、状态与内存记录 | 应用/领域/基础设施边界混合 | 先提取在线规则，后续逐用例拆分 |
-| DeviceController 管理 SSE 集合与广播调度 | 接口展示与推送生命周期混在一起 | SSE 学习单元再提取 |
-| App.vue 包含请求、订阅、派生状态和整页模板 | 缺 api / composables / components 边界 | 先封装一个请求或订阅，不批量拆页面 |
-| EdgeApplication 包含装配、解码、去重和控制执行 | 新任务/驱动不宜继续堆入口 | MQTT/Modbus 学习后按职责小步提取 |
+| ConsoleService 协调 MQTT、命令用例与调度 | 纯规则已提取到 device/domain；仍需按新增用例收窄协调服务 | 后续业务单元 |
+| DeviceEventStream 管理 SSE 集合与广播调度 | 已从 Controller 提取；尚未设计大量客户端场景 | 有实际规模需求时处理 |
+| 前端已拆为 layout / view / api / composable / config / style；温度来源有独立组件 | 其余监控面板暂在一个视图中，路由/stores 为空目录 | 后续按真实复用需求逐个提取 |
+| EdgeApplication 装配并调度命令处理与设备驱动 | 去重/执行与寄存器转换已提取 | 新驱动按 RobotDriver 接入 |
 | common 含消息契约和具体通信实现 | server/edge/robot 都引入 Paho/JSON；HTTP 复用 MQTT record | 在 DTO / 驱动单元按需要收窄依赖 |
-| command/runState 使用字符串和散落的状态集合 | 没有独立领域状态机，亦没有巡检任务 | 状态规则单元再类型化与测试 |
-| 内存记录、直接覆盖最新 telemetry | 重启丢失；迟到数据更新顺序缺专项校验 | 持久化/故障单元设计并验证，不宣称已保证 |
+| 命令判断使用 CommandType / CommandStatus | HTTP/MQTT 仍保持原字符串契约，巡检任务未实现 | 后续任务状态按实际业务定义 |
+| 内存记录；最新 telemetry 拒绝迟到/重复覆盖 | 重启仍丢失；时间顺序规则已有专项回归 | 持久化单元再设计存储 |
 | 环境变量、文本日志、简单 health | 缺集中配置校验、结构化关联日志与依赖就绪判定 | 单独运维单元 |
 | 当前仅 loopback；无权限与持久化审计 | 不满足公网操作入口要求 | 公网前按小单元实现 |
 

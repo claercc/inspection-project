@@ -11,6 +11,8 @@
 
 POST 返回操作记录，不承诺设备已执行。必须观察后续 SSE 中同一 commandId 的结果。Broker 不可用返回 503；无新鲜状态时 START 返回 409；已有待确认命令或机器人正在运行时再次 START 返回 409；非法类型返回 400。离线时仍可发 STOP，由 edge 返回具体失败或由 server 超时显示结果未知。
 
+2026-11-02：START 尚在等待反馈时，界面与服务端仍允许发 STOP；已有等待反馈的 STOP 时再次 STOP 返回 409。命令按接受顺序发布。
+
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8088/api/state
 Invoke-RestMethod http://127.0.0.1:8088/api/commands -Method Post -ContentType application/json -Body '{"type":"START"}'

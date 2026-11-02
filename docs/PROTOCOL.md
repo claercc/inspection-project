@@ -61,12 +61,41 @@ FC03 数量 1–125，超出点表返回异常 02；写只允许地址 5，非�
     "temperature": 26.0,
     "lastControl": 1,
     "writeCount": 1,
-    "error": null
+    "error": null,
+    "evidence": {
+      "sampleId": "9e14421b-1613-4ab2-aa34-8704d8b147dd",
+      "collectorId": "inspection-edge-robot-001",
+      "protocol": "MODBUS_TCP",
+      "host": "127.0.0.1",
+      "port": 1502,
+      "unitId": 1,
+      "functionCode": 3,
+      "startAddress": 0,
+      "registers": [1, 0, 0, 1000, 260, 1, 1]
+    }
   }
 }
 ```
 
 telemetry 主题发送上述 telemetry 对象；设备不可达时 `robotOnline=false, runState=UNKNOWN` 并携带 error。离线对象的零值不能被当作有效测量，界面按 online 判定隐藏数值。
+
+## 采样来源（2026-10-16 增补）
+
+成功读取时，`Telemetry.evidence` 保存该次 FC03 实际返回的寄存器，不由温度等换算值反推。上面的时间、编号和寄存器是格式示例；实际编号每次成功读取重新生成。
+
+| 字段 | 来源与含义 |
+| --- | --- |
+| sampleId | edge 为一次成功读取生成的 UUID；相同样本在 MQTT 与页面中保持相同编号 |
+| collectorId | 采集端标识，当前为 edge 的 MQTT clientId |
+| protocol / functionCode | 当前 MODBUS_TCP / 3（FC03） |
+| host / port / unitId | edge 实际使用的连接配置；host 是从 edge 所在环境访问的地址 |
+| startAddress / registers | 零基起始地址与实际读取数组；地址 a 对应 registers[a - startAddress] |
+
+温度使用地址 4 的值除以 10。`capturedAt` 是 edge 完成读取的时刻，不是设备时钟。采集失败时 `evidence=null`；旧版消息未携带 evidence 时同样不能展示来源证明。
+
+HTTP/SSE 的状态快照另外增加 `telemetryTopic`，由 server 的实际接收回调记录。它不是 telemetry 对象内部字段，可能为 `/telemetry` 或 `/results`。独立观察脚本订阅两者，从结果消息中提取 telemetry，再按 sampleId 和实际 topic 核对。
+
+所有来源字段均为软件采集端声明，不提供签名、硬件身份认证或物理测量保证。核对方法见 [DATA_PROVENANCE.md](DATA_PROVENANCE.md)。
 
 执行结果可为 SUCCEEDED / FAILED / RESULT_UNKNOWN。server 另外维护 PENDING / SENT 阶段。超时不是设备失败证据，RESULT_UNKNOWN 可以被迟到的确切反馈更新；已确认终态不被重复反馈改写。
 

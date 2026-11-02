@@ -1,0 +1,341 @@
+{
+  "stage": "A",
+  "verifiedAt": "2026-10-16T01:07:16.968Z",
+  "runtime": {
+    "node": "v24.19.0",
+    "java": "E:\\workspace\\inspection-project\\.tools\\jdk-17.0.20.1+1\\bin\\java.exe"
+  },
+  "checks": [
+    {
+      "name": "actual register provenance",
+      "status": "PASS",
+      "evidence": "independent FC03 socket read matches edge register[4], scaled temperature and separate MQTT subscriber"
+    },
+    {
+      "name": "frontend navigation and roadmap",
+      "status": "PASS",
+      "evidence": "planned modules remain disabled; roadmap dialog opens and closes with Escape"
+    },
+    {
+      "name": "temperature source drawer + independent sample",
+      "status": "PASS",
+      "evidence": "raw registers, sampleId, temperature and actual topic match independent MQTT JSON; snapshot stays fixed until refresh"
+    },
+    {
+      "name": "Vue → REST → MQTT → edge → FC06/FC03 → SSE → Vue",
+      "status": "PASS",
+      "evidence": "START 55e400fa-533f-42b1-8ef5-cf6119f72f99; moving position; device readback SUCCEEDED"
+    },
+    {
+      "name": "frontend command detail",
+      "status": "PASS",
+      "evidence": "dialog displays actual full commandId and recorded server events"
+    },
+    {
+      "name": "frontend SSE lifecycle",
+      "status": "PASS",
+      "evidence": "three manual reconnects close previous EventSource; no extra device writes"
+    },
+    {
+      "name": "single active movement guard",
+      "status": "PASS",
+      "evidence": "START while RUNNING returns HTTP 409"
+    },
+    {
+      "name": "duplicate MQTT command",
+      "status": "PASS",
+      "evidence": "same commandId delivered twice, simulator FC06 writeCount stays 1"
+    },
+    {
+      "name": "Vue STOP + physical feedback",
+      "status": "PASS",
+      "evidence": "STOP d3de5754-bc41-48a7-87f7-2a39ad07b45b; position stops changing"
+    },
+    {
+      "name": "invalid and expired controls",
+      "status": "PASS",
+      "evidence": "edge rejects both with FAILED, no device write"
+    },
+    {
+      "name": "commandId payload collision",
+      "status": "PASS",
+      "evidence": "different payload under same commandId rejected, no FC06"
+    },
+    {
+      "name": "source drawer on robot failure",
+      "status": "PASS",
+      "evidence": "offline telemetry has evidence=null; no fabricated zero register or valid temperature is displayed"
+    },
+    {
+      "name": "robot offline + definite failure",
+      "status": "PASS",
+      "evidence": "stopping independent robot process displays ROBOT_OFFLINE, STOP fails before write"
+    },
+    {
+      "name": "Modbus reconnect",
+      "status": "PASS",
+      "evidence": "restart simulator → fresh FC03 state, STOPPED, zero writes"
+    },
+    {
+      "name": "source drawer on stale data",
+      "status": "PASS",
+      "evidence": "old sample may be inspected as a locked snapshot; current unavailability remains visible and refresh is disabled"
+    },
+    {
+      "name": "edge stale + result unknown",
+      "status": "PASS",
+      "evidence": "edge stopped → stale state; no result in 8s → RESULT_UNKNOWN; no automatic retry"
+    },
+    {
+      "name": "no control replay after edge restart",
+      "status": "PASS",
+      "evidence": "clean MQTT session; retained control delivered at subscription ignored; simulator writeCount remains 0"
+    },
+    {
+      "name": "Broker loss + reconnect",
+      "status": "PASS",
+      "evidence": "HTTP 503 while MQTT offline, server/edge resubscribe and read current device state; no replay"
+    },
+    {
+      "name": "mobile source inspection",
+      "status": "PASS",
+      "evidence": "390px source drawer is usable without horizontal overflow and closes with Escape"
+    },
+    {
+      "name": "Vue browser validation",
+      "status": "PASS",
+      "evidence": "desktop + mobile screenshots, no uncaught JavaScript errors, mobile has no page overflow"
+    }
+  ],
+  "finalState": {
+    "deviceId": "robot-e2e",
+    "simulated": true,
+    "mqttConnected": true,
+    "online": true,
+    "stale": false,
+    "connectionStatus": "ONLINE",
+    "lastReceivedAt": "2026-10-16T01:07:40.708216Z",
+    "telemetryTopic": "inspection/robot-e2e/telemetry",
+    "telemetry": {
+      "deviceId": "robot-e2e",
+      "source": "MODBUS_TCP_SIMULATOR",
+      "capturedAt": "2026-10-16T01:07:40.707216300Z",
+      "robotOnline": true,
+      "runState": "STOPPED",
+      "x": 0.5,
+      "y": 0,
+      "battery": 99.9,
+      "temperature": 26.1,
+      "lastControl": 2,
+      "writeCount": 2,
+      "error": null,
+      "evidence": {
+        "sampleId": "5337110d-f30a-4de6-b30f-988ec7cddce5",
+        "collectorId": "inspection-edge-robot-e2e",
+        "protocol": "MODBUS_TCP",
+        "host": "127.0.0.1",
+        "port": 11502,
+        "unitId": 1,
+        "functionCode": 3,
+        "startAddress": 0,
+        "registers": [
+          0,
+          5,
+          0,
+          999,
+          261,
+          2,
+          2
+        ]
+      }
+    },
+    "commands": [
+      {
+        "command": {
+          "commandId": "fc1404ee-f83c-45c9-876c-eb76d1a1f785",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:40.698679300Z",
+          "expiresAt": "2026-10-16T01:07:48.698679300Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "FC06 write + FC03 device feedback confirmed",
+        "updatedAt": "2026-10-16T01:07:40.707216300Z"
+      },
+      {
+        "command": {
+          "commandId": "64b97dc2-16b2-4549-8f22-e2be033df601",
+          "deviceId": "robot-e2e",
+          "type": "START",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:40.490629600Z",
+          "expiresAt": "2026-10-16T01:07:48.490629600Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "FC06 write + FC03 device feedback confirmed",
+        "updatedAt": "2026-10-16T01:07:40.521628700Z"
+      },
+      {
+        "command": {
+          "commandId": "574fd9b4-dd76-48d4-bc70-ef16552c0d68",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:30.893688800Z",
+          "expiresAt": "2026-10-16T01:07:38.893688800Z"
+        },
+        "status": "RESULT_UNKNOWN",
+        "message": "No device feedback before deadline; inspect state before manual recovery",
+        "updatedAt": "2026-10-16T01:07:39.252526200Z"
+      },
+      {
+        "command": {
+          "commandId": "7d3afda8-02c4-4e97-9d6e-6019577438c2",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:27.327173300Z",
+          "expiresAt": "2026-10-16T01:07:35.327173300Z"
+        },
+        "status": "FAILED",
+        "message": "Connection refused: getsockopt",
+        "updatedAt": "2026-10-16T01:07:27.331175800Z"
+      },
+      {
+        "command": {
+          "commandId": "d3de5754-bc41-48a7-87f7-2a39ad07b45b",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:24.757373800Z",
+          "expiresAt": "2026-10-16T01:07:32.757373800Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "FC06 write + FC03 device feedback confirmed",
+        "updatedAt": "2026-10-16T01:07:24.761374600Z"
+      },
+      {
+        "command": {
+          "commandId": "55e400fa-533f-42b1-8ef5-cf6119f72f99",
+          "deviceId": "robot-e2e",
+          "type": "START",
+          "parameters": {},
+          "createdAt": "2026-10-16T01:07:23.008910100Z",
+          "expiresAt": "2026-10-16T01:07:31.008910100Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "FC06 write + FC03 device feedback confirmed",
+        "updatedAt": "2026-10-16T01:07:23.055073200Z"
+      }
+    ],
+    "diagnostics": [
+      {
+        "timestamp": "2026-10-16T01:07:40.707216300Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT result",
+        "commandId": "fc1404ee-f83c-45c9-876c-eb76d1a1f785",
+        "summary": "SUCCEEDED: FC06 write + FC03 device feedback confirmed"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:40.699680700Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "fc1404ee-f83c-45c9-876c-eb76d1a1f785",
+        "summary": "STOP sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:40.521628700Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT result",
+        "commandId": "64b97dc2-16b2-4549-8f22-e2be033df601",
+        "summary": "SUCCEEDED: FC06 write + FC03 device feedback confirmed"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:40.490629600Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "64b97dc2-16b2-4549-8f22-e2be033df601",
+        "summary": "START sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:39.252526200Z",
+        "direction": "SERVER",
+        "protocol": "timeout",
+        "commandId": "574fd9b4-dd76-48d4-bc70-ef16552c0d68",
+        "summary": "Device result missing; no automatic resend"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:30.894688800Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "574fd9b4-dd76-48d4-bc70-ef16552c0d68",
+        "summary": "STOP sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:27.583555600Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "Modbus readback: STOPPED"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:27.331175800Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT result",
+        "commandId": "7d3afda8-02c4-4e97-9d6e-6019577438c2",
+        "summary": "FAILED: Connection refused: getsockopt"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:27.328174500Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "7d3afda8-02c4-4e97-9d6e-6019577438c2",
+        "summary": "STOP sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:27.078555900Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "Device offline: Connection reset by peer"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:24.761374600Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT result",
+        "commandId": "d3de5754-bc41-48a7-87f7-2a39ad07b45b",
+        "summary": "SUCCEEDED: FC06 write + FC03 device feedback confirmed"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:24.757373800Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "d3de5754-bc41-48a7-87f7-2a39ad07b45b",
+        "summary": "STOP sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:23.055073200Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT result",
+        "commandId": "55e400fa-533f-42b1-8ef5-cf6119f72f99",
+        "summary": "SUCCEEDED: FC06 write + FC03 device feedback confirmed"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:23.013912200Z",
+        "direction": "SERVER → EDGE",
+        "protocol": "MQTT QoS1 retain=false",
+        "commandId": "55e400fa-533f-42b1-8ef5-cf6119f72f99",
+        "summary": "START sent"
+      },
+      {
+        "timestamp": "2026-10-16T01:07:20.074040100Z",
+        "direction": "EDGE → SERVER",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "Modbus readback: STOPPED"
+      }
+    ]
+  },
+  "status": "PASS"
+}

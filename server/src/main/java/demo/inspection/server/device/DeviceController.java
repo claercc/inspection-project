@@ -1,39 +1,65 @@
 package demo.inspection.server.device;
 
+import demo.inspection.server.device.domain.CommandHistory.CommandView;
+import demo.inspection.server.device.domain.CommandRejectedException;
+import demo.inspection.server.device.infrastructure.DeviceEventStream;
 import demo.inspection.server.integration.ConsoleService;
-import org.springframework.http.MediaType;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+/** 对外暴露状态查询、控制提交和 SSE 订阅，业务准入判断交给 ConsoleService。 */
 @RestController
 @RequestMapping("/api")
 public class DeviceController {
+
     private final ConsoleService console;
-    private final Set<SseEmitter> clients = ConcurrentHashMap.newKeySet();
-    public DeviceController(ConsoleService console) { this.console = console; }
-    @GetMapping("/state") public ConsoleService.State state() { return console.state(); }
-    @GetMapping("/health") public Map<String, String> health() { return Map.of("status", "UP", "mode", "SIMULATION", "stage", "A"); }
+    private final DeviceEventStream events;
+
+    public DeviceController(ConsoleService console, DeviceEventStream events) {
+        this.console = console;
+        this.events = events;
+    }
+
+    @GetMapping("/state")
+    public ConsoleService.State state() {
+        return console.state();
+    }
+
+    // 只表示 HTTP 服务存活；设备和 MQTT 是否就绪应查看 /state 中的连接状态。
+    @GetMapping("/health")
+    public Map<String, String> health() {
+        return Map.of("status", "UP", "mode", "SIMULATION", "stage", "A");
+    }
+
     public record CommandRequest(String type) {}
+
     @PostMapping("/commands")
-    public ConsoleService.CommandView command(@RequestBody CommandRequest request) {
+    public CommandView command(@RequestBody CommandRequest request) {
+        // HTTP 成功仅代表返回了操作记录，执行结果应通过相同 commandId 的后续状态确认。
         return console.issue(request.type());
     }
+
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events() {
-        var emitter = new SseEmitter(0L); clients.add(emitter);
-        emitter.onCompletion(() -> clients.remove(emitter)); emitter.onTimeout(() -> clients.remove(emitter));
-        emitter.onError(e -> clients.remove(emitter)); send(emitter, console.state()); return emitter;
+        return events.subscribe();
     }
-    @Scheduled(fixedDelay = 500) public void broadcast() {
-        if (clients.isEmpty()) return;
-        var state = console.state(); clients.forEach(c -> send(c, state));
-    }
-    private void send(SseEmitter client, ConsoleService.State state) {
-        try { client.send(SseEmitter.event().name("state").data(state)); }
-        catch (Exception e) { clients.remove(client); client.complete(); }
+
+    @ExceptionHandler(CommandRejectedException.class)
+    public ProblemDetail rejectedCommand(CommandRejectedException exception) {
+        HttpStatus status = switch (exception.reason()) {
+            case INVALID_REQUEST -> HttpStatus.BAD_REQUEST;
+            case UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
+            case CONFLICT -> HttpStatus.CONFLICT;
+        };
+        return ProblemDetail.forStatusAndDetail(status, exception.getMessage());
     }
 }

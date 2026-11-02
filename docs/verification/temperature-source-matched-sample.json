@@ -1,0 +1,74 @@
+{
+  "drawerTelemetry": {
+    "deviceId": "robot-e2e",
+    "source": "MODBUS_TCP_SIMULATOR",
+    "capturedAt": "2026-10-16T01:07:21.050123300Z",
+    "robotOnline": true,
+    "runState": "STOPPED",
+    "x": 0,
+    "y": 0,
+    "battery": 100,
+    "temperature": 26,
+    "lastControl": 0,
+    "writeCount": 0,
+    "error": null,
+    "evidence": {
+      "sampleId": "cfd1e988-3820-4d4c-acbe-6f6787a6068b",
+      "collectorId": "inspection-edge-robot-e2e",
+      "protocol": "MODBUS_TCP",
+      "host": "127.0.0.1",
+      "port": 11502,
+      "unitId": 1,
+      "functionCode": 3,
+      "startAddress": 0,
+      "registers": [
+        0,
+        0,
+        0,
+        1000,
+        260,
+        0,
+        0
+      ]
+    }
+  },
+  "independentRecord": {
+    "observedAt": "2026-10-16T01:07:21.051Z",
+    "topic": "inspection/robot-e2e/telemetry",
+    "retained": false,
+    "telemetry": {
+      "deviceId": "robot-e2e",
+      "source": "MODBUS_TCP_SIMULATOR",
+      "capturedAt": "2026-10-16T01:07:21.050123300Z",
+      "robotOnline": true,
+      "runState": "STOPPED",
+      "x": 0,
+      "y": 0,
+      "battery": 100,
+      "temperature": 26,
+      "lastControl": 0,
+      "writeCount": 0,
+      "error": null,
+      "evidence": {
+        "sampleId": "cfd1e988-3820-4d4c-acbe-6f6787a6068b",
+        "collectorId": "inspection-edge-robot-e2e",
+        "protocol": "MODBUS_TCP",
+        "host": "127.0.0.1",
+        "port": 11502,
+        "unitId": 1,
+        "functionCode": 3,
+        "startAddress": 0,
+        "registers": [
+          0,
+          0,
+          0,
+          1000,
+          260,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "directRawTemperature": 260
+}

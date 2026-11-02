@@ -10,6 +10,8 @@ try {
     $cacheDir = Join-Path $ProjectRoot '.tools\npm-cache'
     if (Test-Path -LiteralPath 'package-lock.json') { npm.cmd ci --cache $cacheDir } else { npm.cmd install --cache $cacheDir }
     if ($LASTEXITCODE -ne 0) { throw 'Tool dependency installation failed' }
+    npm.cmd run check
+    if ($LASTEXITCODE -ne 0) { throw 'Formatting / JavaScript code checks failed' }
     Push-Location 'web'
     try {
         if (Test-Path -LiteralPath 'package-lock.json') { npm.cmd ci --cache $cacheDir } else { npm.cmd install --cache $cacheDir }

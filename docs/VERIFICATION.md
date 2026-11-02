@@ -1,5 +1,46 @@
 # 阶段 A 验证记录
 
+## 2026-11-02：代码整理与控制边界回归
+
+- Java 全模块 `mvn verify` 成功，Checkstyle 零违规，24 个测试通过（原 TCP 协议 5 个、edge 命令处理 7 个、server 规则 12 个）。
+- 根目录 `npm run check` 通过：Prettier 格式检查与 JavaScript/Vue ESLint 检查，无警告；Vue 生产构建通过。
+- 使用 `VERIFICATION_PREFIX=readability-20261102` 运行 `scripts/verify.ps1`：22 项端到端检查全部 PASS，包含已有 20 项与新增的待确认 START 后发 STOP、迟到 MQTT 采样拒绝。
+- 实际浏览器验证了启停、指令详情、温度来源、SSE 生命周期、设备/edge/Broker 离线恢复；桌面和 390px 手机截图已检查，无整页横向溢出或未捕获 JavaScript 错误。
+- 新增单元测试覆盖设备写入成功后 FC03 返回 Modbus 异常时保持 RESULT_UNKNOWN、重复命令不再写入、PUBACK 迟于结果、终态保护及重复采样不刷新存活时间。
+- 本轮为独立本地进程验证；没有执行 Docker 容器运行或真实硬件验收。
+- 证据：[回归报告](verification/readability-20261102-report.json)、[桌面](verification/readability-20261102-desktop.png)、[手机](verification/readability-20261102-mobile.png)。代码入口见 [阅读指南](CODE_GUIDE.md)。
+
+## 2026-10-16：温度来源与独立核对
+
+- 执行 `scripts/build.ps1`：Java 17 clean verify 全模块成功，5 个真实 TCP 测试通过，Vue/Vite 生产构建通过；未新增依赖。
+- 运行命令：`$env:VERIFICATION_PREFIX='temperature-source'; powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`。
+- 20 项端到端检查全部 PASS，保留原 15 项检查，新增以下 5 项：
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 原始寄存器来源 | 独立 Node TCP Socket 发 FC03 读地址 4，与 edge 原值、换算温度及独立 MQTT 记录一致 |
+| 来源抽屉与独立消息 | 同 sampleId、同实际 topic 的完整 telemetry 深度比较相等；快照保持不变，显式刷新切换编号 |
+| 模拟器离线 | evidence=null；抽屉不显示伪造零寄存器或有效温度 |
+| edge 过期 | 当前实时不可用提示可见；旧样本可查，刷新按钮禁用 |
+| 手机端来源抽屉 | 390px 宽度无横向溢出，可用 Escape 关闭 |
+
+- 桌面与手机截图已检查，无未捕获 JS 错误。隔离栈使用独立端口，结束后清理；标准本地演示用新产物重启为 ONLINE，独立观察脚本 `--count 1 --seconds 10` 成功收到真实 MQTT 消息。
+- 证据：[报告](verification/temperature-source-report.json)、[匹配样本](verification/temperature-source-matched-sample.json)、[桌面来源抽屉](verification/temperature-source-source-desktop.png)、[手机来源抽屉](verification/temperature-source-source-mobile.png)、[完整桌面](verification/temperature-source-desktop.png)、[完整手机](verification/temperature-source-mobile.png)。历史报告保留。
+- 测试使用软件模拟设备，验证数据对应与通信行为，不表示已验证物理传感器、硬件身份、数据库历史或公网部署。
+
+## 2026-10-15：前端优先单元回归
+
+- Vue/Vite 生产构建通过；未改变依赖、后端 Java 或 Modbus 点表。
+- `prepare-structure.ps1` 创建 62 个规划目录；未实现模块只保留空目录。
+- 运行命令：`$env:VERIFICATION_PREFIX='frontend-workspace'; powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`。
+- 15 项端到端检查通过：原 12 项链路/故障检查，加规划入口与路线弹窗、真实指令详情、连续三次 SSE 重连的生命周期检查。
+- SSE 重连验证旧 EventSource 被关闭，活动订阅数不增长，设备写次数不增加。
+- 桌面和手机截图、无未捕获 JS 错误、手机无整页横向溢出。测试结束清理隔离栈，不关闭原有本地演示服务。
+- 本次独立报告：[frontend-workspace-report.json](verification/frontend-workspace-report.json)，截图：[桌面](verification/frontend-workspace-desktop.png)、[手机](verification/frontend-workspace-mobile.png)。旧 stage-a 文件保留。
+- 未验收后端新业务、完整分层迁移、容器运行或公网发布。
+
+以下保留 2026-10-11 阶段 A 的历史验收记录。
+
 验证日期：2026-10-11（Asia/Singapore）。已实际运行本地模拟链路。
 
 ## 环境

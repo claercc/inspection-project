@@ -1,6 +1,12 @@
 # 工业巡检机器人上位机演示系统
 
+代码整理与检查入口见 [代码阅读指南](docs/CODE_GUIDE.md)。修改源码后在根目录运行 `npm run check`；完整构建与回归命令见指南。
+
 当前交付：**阶段 A，模拟设备的真实通信闭环**。Vue 发起启动/停止，Spring Boot 通过 MQTT 发送命令，独立 edge 进程通过 Modbus TCP 控制独立机器人模拟器，读回状态后经 MQTT 和 SSE 更新 Vue。
+
+2026-10-15 更新：已完成前端监控工作台与职责拆分，并按业务模块创建前后端规划目录。后续从页面按钮逐步接入后端；目录和实现顺序见 [前端优先说明](docs/FRONTEND_FIRST_PLAN.md)。空目录可用 `powershell -ExecutionPolicy Bypass -File scripts/prepare-structure.ps1` 重建。
+
+2026-10-16 更新：温度卡片可「查看来源」，展示实际 Modbus 原值、换算、采集编号和 MQTT 主题，并支持独立订阅核对。先运行 `node scripts/observe-telemetry.mjs --device robot-001`，再打开来源抽屉；详细步骤见 [温度来源核对](docs/DATA_PROVENANCE.md)。本单元 20 项端到端检查及 5 个 TCP 测试通过。
 
 无需机器人、摄像头、厂商账号或付费云 API。运动、温度、电量与点表均为演示模拟；这不代表已接入真实工业设备。摄像机、三点巡检、业务归档与视频按阶段 B/C 推进。
 

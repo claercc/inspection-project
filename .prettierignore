@@ -1,0 +1,9 @@
+**/node_modules/
+**/target/
+**/dist/
+.tools/
+.run/
+.git/
+**/package-lock.json
+docs/
+*.md
