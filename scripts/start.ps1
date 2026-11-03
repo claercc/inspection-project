@@ -19,6 +19,20 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 $javaExe = Get-ProjectJava
 $nodeExe = (Get-Command node).Source
 $entries = @()
+<#
+.SYNOPSIS
+启动一个后台演示进程，并保存日志与进程身份供 stop.ps1 清理。
+.PARAMETER role
+进程角色名，例如 broker、robot、edge、server、web，用于日志文件与管理记录。
+.PARAMETER exe
+要启动的可执行文件完整路径。
+.PARAMETER arguments
+传给 Start-Process 的参数数组；含空格的路径由调用方按现有启动方式引用。
+.OUTPUTS
+无返回值。更新 entries 和 .run/processes.json，不等待业务服务就绪。
+.EXAMPLE
+Launch-Demo 'server' $javaExe @('-jar', 'server/target/server-0.1.0.jar')
+#>
 function Launch-Demo($role, $exe, $arguments) {
     $process = Start-Process -FilePath $exe -ArgumentList $arguments -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $runDir "$role.out.log") -RedirectStandardError (Join-Path $runDir "$role.err.log")
     $script:entries += [pscustomobject]@{ role=$role; pid=$process.Id; started=$process.StartTime.ToUniversalTime().Ticks.ToString() }

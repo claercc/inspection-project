@@ -16,6 +16,11 @@ mkdirSync(artifacts, { recursive: true });
 const artifactPrefix = process.env.VERIFICATION_PREFIX || 'stage-a';
 const base = 'http://127.0.0.1:18088',
   deviceId = 'robot-e2e';
+/**
+ * 构造隔离测试设备的 MQTT 主题，避免测试命令进入标准演示设备的主题。
+ * @param {'commands'|'telemetry'|'results'} kind 消息类别。
+ * @returns {string} 当前测试设备的完整主题。
+ */
 const topic = (kind) => `inspection/${deviceId}/${kind}`;
 const java = process.env.JAVA_BIN || 'java';
 const env = {
@@ -36,6 +41,11 @@ const processes = new Map(),
   checks = [],
   replies = new Map();
 let browser, observer;
+/**
+ * 按预定义角色启动隔离测试进程并接管日志；可用 start('edge') 启动 edge。
+ * @param {'broker'|'robot'|'edge'|'server'|'web'|'sourceObserver'} role 进程角色。
+ * @returns {import('node:child_process').ChildProcess} 已发起启动的子进程；不表示服务已就绪。
+ */
 function start(role) {
   const launches = {
     broker: [process.execPath, ['scripts/broker.mjs']],
@@ -85,6 +95,11 @@ function start(role) {
   processes.set(role, child);
   return child;
 }
+/**
+ * 请求关闭本测试启动的指定角色，并等待退出事件或最多四秒。
+ * @param {string} role 已登记的进程角色；未登记或已退出时直接结束。
+ * @returns {Promise<void>} 清理等待结束后兑现；达到等待上限不代表已确认进程退出。
+ */
 async function stop(role) {
   const child = processes.get(role);
   if (!child) return;
@@ -94,6 +109,17 @@ async function stop(role) {
   child.kill();
   await Promise.race([done, delay(4000)]);
 }
+/**
+ * 轮询一个条件，适用于等待服务就绪、SSE 更新和设备反馈；期间的异常允许下轮重试。
+ * @template T
+ * @param {() => T|Promise<T>} fn 每轮执行的检查；返回假值表示继续等待。
+ * @param {string} label 超时时显示的场景说明。
+ * @param {number} [timeout=20000] 最大等待时间，单位毫秒。
+ * @returns {Promise<T>} 首个为真值的检查结果。
+ * @throws {Error} 超过截止时间仍未得到真值时，Promise 拒绝。
+ * @example
+ * await until(async () => (await state()).online, '设备上线');
+ */
 async function until(fn, label, timeout = 20000) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
@@ -107,11 +133,21 @@ async function until(fn, label, timeout = 20000) {
   }
   throw new Error(`Timeout: ${label} (see .run/verification logs)`);
 }
+/**
+ * 查询隔离栈 /api/state 并断言 HTTP 200，无参数。
+ * @returns {Promise<import('../web/src/api/device.js').DeviceState>} 当前设备与命令历史快照。
+ * @throws {Error} 网络异常、HTTP 状态断言失败或响应解析失败时，Promise 拒绝。
+ */
 async function state() {
   const r = await fetch(`${base}/api/state`);
   assert.equal(r.status, 200);
   return r.json();
 }
+/**
+ * 向隔离栈提交控制请求，供正常和拒绝场景断言使用。
+ * @param {string} type 控制类型；负向测试也可传非法值。
+ * @returns {Promise<Response>} 原始 HTTP 响应，不主动把非 2xx 状态转换成异常。
+ */
 async function post(type) {
   return fetch(`${base}/api/commands`, {
     method: 'POST',
@@ -119,10 +155,22 @@ async function post(type) {
     body: JSON.stringify({ type }),
   });
 }
+/**
+ * 将已完成的场景加入报告并输出通过信息，断言应在调用前完成。
+ * @param {string} name 场景名称。
+ * @param {string} evidence 描述实际观察结果的文字。
+ * @returns {void} 更新 checks 并写控制台。
+ */
 function pass(name, evidence) {
   checks.push({ name, status: 'PASS', evidence });
   console.log(`PASS ${name}: ${evidence}`);
 }
+/**
+ * 经独立 MQTT 客户端投递控制消息，供重复投递、非法参数等通信场景调用。
+ * @param {object} command 完整的原始命令对象，包含编号、设备、类型和有效期。
+ * @returns {Promise<void>} MQTT 发布回调成功后兑现，不等待设备执行结果。
+ * @throws {Error} 发布回调收到错误时，Promise 拒绝。
+ */
 function publish(command) {
   return new Promise((resolve, reject) =>
     observer.publish(topic('commands'), JSON.stringify(command), { qos: 1, retain: false }, (e) =>
@@ -130,12 +178,25 @@ function publish(command) {
     ),
   );
 }
+/**
+ * 等待独立订阅者观察到指定命令的足够多条回执，供重复投递验证使用。
+ * @param {string} id 命令 commandId。
+ * @param {number} [count=1] 至少需要观测到的回执条数。
+ * @returns {Promise<object>} 达到条数要求时，该命令最后一条 MQTT 回执。
+ * @throws {Error} 等待超过 until 的截止时间时，Promise 拒绝。
+ */
 async function resultFor(id, count = 1) {
   return until(
     () => replies.get(id)?.length >= count && replies.get(id).at(-1),
     `MQTT result ${id}`,
   );
 }
+/**
+ * 等待服务端记录中某类型的最近一条命令变为成功，供首次启停闭环断言使用。
+ * @param {'START'|'STOP'} type 要查询的命令类型；此辅助函数不按 commandId 区分同类型命令。
+ * @returns {Promise<import('../web/src/api/device.js').CommandView>} 最近一条已确认成功的匹配记录。
+ * @throws {Error} 未能在截止时间内观察到成功记录时，Promise 拒绝。
+ */
 async function settled(type) {
   return until(async () => {
     const s = await state();
@@ -143,6 +204,12 @@ async function settled(type) {
     return c?.status === 'SUCCEEDED' && c;
   }, `${type} readback`);
 }
+/**
+ * 在独立观察脚本输出的 JSONL 中查找同一次采样，供来源抽屉的数据核对使用。
+ * @param {string} sampleId edge 生成的采样编号。
+ * @param {string} mqttTopic 该采样实际接收的完整 MQTT 主题。
+ * @returns {object|null} 同时匹配编号和主题的观察记录；文件未生成或暂未找到时返回 null。
+ */
 function independentlyObserved(sampleId, mqttTopic) {
   const file = path.join(run, 'source-observer.jsonl');
   if (!existsSync(file)) return null;
@@ -157,6 +224,11 @@ function independentlyObserved(sampleId, mqttTopic) {
   }
   return null;
 }
+/**
+ * 使用独立 TCP Socket 直接执行 FC03 读取温度寄存器地址 4，无参数，不经过 server/edge。
+ * @returns {Promise<number>} 本次读取的无符号原始寄存器值，尚未除以 10 换算成摄氏度。
+ * @throws {Error} 连接异常、两秒内未读到完整响应或协议断言失败时，Promise 拒绝。
+ */
 function readTemperatureDirectly() {
   return new Promise((resolve, reject) => {
     const socket = createConnection({ host: '127.0.0.1', port: 11502 });

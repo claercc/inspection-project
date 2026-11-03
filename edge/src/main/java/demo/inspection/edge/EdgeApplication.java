@@ -30,6 +30,11 @@ public final class EdgeApplication implements AutoCloseable {
     private final DeviceCommandHandler commands;
     private final MqttLink mqtt;
 
+    /**
+     * 从环境变量装配驱动、命令处理器与 MQTT，无参数；随后调用 start 开始工作。
+     *
+     * @throws Exception MQTT 初始化失败或环境变量无法解析时抛出。
+     */
     public EdgeApplication() throws Exception {
         String host = System.getenv().getOrDefault("MODBUS_HOST", "127.0.0.1");
         int port = Integer.parseInt(System.getenv().getOrDefault("MODBUS_PORT", "1502"));
@@ -46,11 +51,17 @@ public final class EdgeApplication implements AutoCloseable {
         );
     }
 
+    /**
+     * 启动 MQTT 连接与定时轮询，无参数、无返回值；进程入口在装配后调用一次。
+     */
     public void start() {
         mqtt.start();
         worker.scheduleWithFixedDelay(this::poll, 0, POLL_INTERVAL_MS, TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * 由单线程定时任务或命令处理后调用，无参数、无返回值；读取并发布一次设备采样。
+     */
     private void poll() {
         if (!mqtt.isConnected()) {
             return;
@@ -83,6 +94,11 @@ public final class EdgeApplication implements AutoCloseable {
         }
     }
 
+    /**
+     * 由 worker 处理 MQTT 载荷，无返回值；解析、执行、发布结果后立即补一次采样。
+     *
+     * @param json commands 主题中的 UTF-8 JSON 载荷。
+     */
     private void receiveCommand(String json) {
         try {
             Command command = Messages.JSON.readValue(json, Command.class);
@@ -98,6 +114,11 @@ public final class EdgeApplication implements AutoCloseable {
         }
     }
 
+    /**
+     * 发布一条命令结果，无返回值；失败仅记录，不重新执行物理控制。
+     *
+     * @param result 处理器已执行或从去重账本回放的结果。
+     */
     private void publishResult(Result result) {
         try {
             mqtt.publish(Messages.topic(deviceId, "results"), result);
@@ -108,6 +129,9 @@ public final class EdgeApplication implements AutoCloseable {
         }
     }
 
+    /**
+     * 停止 worker 并关闭设备、MQTT 连接，无参数、无返回值；由关闭钩子调用。
+     */
     @Override
     public void close() {
         worker.shutdownNow();
@@ -115,6 +139,12 @@ public final class EdgeApplication implements AutoCloseable {
         mqtt.close();
     }
 
+    /**
+     * 启动 edge 独立进程并等待退出，无返回值。
+     *
+     * @param args Java 命令行参数，当前未使用；配置从环境变量读取。
+     * @throws Exception 装配失败或主线程等待被中断时抛出。
+     */
     public static void main(String[] args) throws Exception {
         EdgeApplication application = new EdgeApplication();
         Runtime.getRuntime().addShutdownHook(new Thread(application::close));

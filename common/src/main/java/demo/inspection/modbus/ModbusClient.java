@@ -28,6 +28,19 @@ public final class ModbusClient implements AutoCloseable {
     private DataOutputStream output;
     private int transactionId;
 
+    /**
+     * 配置一个串行 Modbus TCP 客户端；构造时不联网，首次读写时建立连接。
+     *
+     * @param host 设备主机名或 IP 地址。
+     * @param port Modbus TCP 监听端口；本地模拟器默认 1502。
+     * @param unit 请求中的 Unit ID，应与设备配置一致。
+     * @param timeout 连接与套接字读取超时，单位毫秒。
+     *
+     * <p>用法示例：
+     * <pre>{@code
+     * new ModbusClient("127.0.0.1", 1502, 1, 1000);
+     * }</pre>
+     */
     public ModbusClient(String host, int port, int unit, int timeout) {
         this.host = host;
         this.port = port;
@@ -35,6 +48,11 @@ public final class ModbusClient implements AutoCloseable {
         this.timeout = timeout;
     }
 
+    /**
+     * 在尚无可用套接字时建立连接，供 request 调用，无参数、无返回值。
+     *
+     * @throws IOException 连接设备或建立输入输出流失败时抛出。
+     */
     private void connect() throws IOException {
         if (socket != null && !socket.isClosed()) {
             return;
@@ -53,6 +71,20 @@ public final class ModbusClient implements AutoCloseable {
         }
     }
 
+    /**
+     * 执行一次 FC03 保持寄存器读取；同一客户端上的读写由对象锁串行化。
+     *
+     * @param address 零基起始地址，按目标设备点表提供。
+     * @param quantity 连续读取的寄存器数量，必须为 1～125。
+     * @return 按地址递增排列的原始无符号 16 位寄存器值数组，未进行单位换算。
+     * @throws IllegalArgumentException quantity 超出允许范围时抛出。
+     * @throws IOException 连接、读取、帧校验失败或设备返回协议异常时抛出。
+     *
+     * <p>用法示例：
+     * <pre>{@code
+     * int[] registers = client.readHolding(0, 7);
+     * }</pre>
+     */
     public synchronized int[] readHolding(int address, int quantity) throws IOException {
         if (quantity < 1 || quantity > MAX_REGISTER_QUANTITY) {
             throw new IllegalArgumentException("quantity must be 1..125");
@@ -76,6 +108,18 @@ public final class ModbusClient implements AutoCloseable {
         return registers;
     }
 
+    /**
+     * 执行一次 FC06 写单寄存器并核对回显，无返回值；业务层仍需读回状态确认执行。
+     *
+     * @param address 零基目标地址，由调用方按点表指定。
+     * @param value 要写入的 16 位原始值，由调用方保证符合点表约定。
+     * @throws IOException 通信失败、回显不匹配或设备明确拒绝写入时抛出；本层不自动重试。
+     *
+     * <p>用法示例：
+     * <pre>{@code
+     * client.writeSingle(RobotRegisters.CONTROL, RobotRegisters.STOP_CONTROL);
+     * }</pre>
+     */
     public synchronized void writeSingle(int address, int value) throws IOException {
         byte[] response = request(WRITE_SINGLE_REGISTER, address, value);
         // FC06 必须回显原地址和原值；回显匹配后仍需业务层读取设备状态。
@@ -92,6 +136,15 @@ public final class ModbusClient implements AutoCloseable {
         }
     }
 
+    /**
+     * 完成一次连接、发送和响应读取，供 FC03/FC06 方法调用。
+     *
+     * @param function Modbus 功能码，本客户端使用 3 或 6。
+     * @param address 请求中的零基寄存器地址。
+     * @param value FC03 时为数量，FC06 时为写入值。
+     * @return 不含 MBAP 头和 Unit ID 的响应 PDU。
+     * @throws IOException 任何通信或协议校验失败时抛出，并清除连接供下次请求重建。
+     */
     private byte[] request(int function, int address, int value) throws IOException {
         try {
             connect();
@@ -105,6 +158,14 @@ public final class ModbusClient implements AutoCloseable {
         }
     }
 
+    /**
+     * 按当前事务编号写出完整请求帧并刷新输出流，无返回值。
+     *
+     * @param function 当前功能码。
+     * @param address 零基寄存器地址。
+     * @param value 数量或写入值，具体含义由功能码决定。
+     * @throws IOException 写入套接字失败时抛出。
+     */
     private void writeRequest(int function, int address, int value) throws IOException {
         output.writeShort(transactionId);
         output.writeShort(0);
@@ -116,6 +177,14 @@ public final class ModbusClient implements AutoCloseable {
         output.flush();
     }
 
+    /**
+     * 按 MBAP 长度读取响应，并校验事务编号、协议、设备单元和功能码。
+     *
+     * @param function 本次请求使用的功能码，用于匹配正常或异常响应。
+     * @return 完整响应 PDU；具体字节数或 FC06 回显由调用方继续核对。
+     * @throws IOException 超时、截断或响应格式不匹配时抛出。
+     * @throws ModbusException 设备返回格式正确的协议异常响应时抛出。
+     */
     private byte[] readResponse(int function) throws IOException {
         // TCP 没有消息边界，一帧可能分多次到达；不能把一次 read 当成完整响应。
         int responseTransactionId = input.readUnsignedShort();
@@ -157,6 +226,9 @@ public final class ModbusClient implements AutoCloseable {
         return response;
     }
 
+    /**
+     * 释放当前套接字并清空连接引用，无参数、无返回值；下次请求可重新建连。
+     */
     @Override
     public synchronized void close() {
         if (socket != null) {

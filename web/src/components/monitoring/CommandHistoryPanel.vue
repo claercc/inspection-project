@@ -19,6 +19,11 @@ const commandEvents = computed(() =>
     .slice()
     .reverse(),
 );
+/**
+ * 选中命令并在 DOM 更新后打开详情，供指令行的“详情”按钮调用。
+ * @param {import('../../api/device.js').CommandView} item 当前行的服务端命令记录。
+ * @returns {Promise<void>} 详情内容已更新且已调用 showModal 后兑现。
+ */
 async function showCommand(item) {
   selectedCommandId.value = item.command.commandId;
   await nextTick();

@@ -25,10 +25,19 @@ const observerCommand = computed(() => {
   const deviceId = snapshot.value?.deviceId;
   return `node scripts/observe-telemetry.mjs${/^[A-Za-z0-9_-]+$/.test(deviceId || '') ? ` --device ${deviceId}` : ''}`;
 });
+/**
+ * 将来源证据中的时间转为本地日期和时间，供抽屉模板调用。
+ * @param {string|null|undefined} value 采集或接收时间的 ISO-8601 字符串。
+ * @returns {string} 中文日期时间；空值返回“尚未收到”。
+ */
 const dateTime = (value) =>
   value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '尚未收到';
 
-// 深拷贝本次采样，便于按 sampleId 与独立 MQTT 记录核对；只有显式刷新才切换快照。
+/**
+ * 锁定当前采样、实际主题和接收时间，无参数；打开抽屉和点击刷新时调用。
+ * 深拷贝便于按 sampleId 核对，后续 SSE 推送不会改写这份快照。
+ * @returns {void} 更新 snapshot 并清空复制提示，不向服务端请求历史数据。
+ */
 function captureLatest() {
   const state = props.consoleState;
   snapshot.value = {
@@ -40,11 +49,21 @@ function captureLatest() {
   };
   copyStatus.value = '';
 }
+/**
+ * 锁定最新采样并打开来源抽屉，无参数；通过 defineExpose 暴露给父组件。
+ * @returns {Promise<void>} Vue 完成 DOM 更新并调用 showModal 后兑现。
+ * @example
+ * await temperatureSource.value.open(); // 在持有组件 ref 的父组件中调用
+ */
 async function open() {
   captureLatest();
   await nextTick();
   drawer.value.showModal();
 }
+/**
+ * 将当前采样编号复制到剪贴板，无参数；仅在有 sampleId 时由复制按钮调用。
+ * @returns {Promise<void>} 完成复制尝试后兑现；成功或失败均通过 copyStatus 提示，不向外抛出。
+ */
 async function copySampleId() {
   try {
     await navigator.clipboard.writeText(evidence.value.sampleId);

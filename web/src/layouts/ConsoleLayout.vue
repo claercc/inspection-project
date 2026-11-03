@@ -12,6 +12,12 @@ const icons = {
   diagnostics: 'M2 12h4l3-8 6 16 3-8h4',
   devices: 'M3 4h18v12H3z M8 21h8 M12 16v5 M7 8h4 M7 12h7',
 };
+/**
+ * 响应已启用的导航按钮，更新选中项并滚动到对应区域；当前页面没有路由切换。
+ * @param {object} item 来自 navigation 能力清单的导航项。
+ * @param {string} item.id 区域编号；diagnostics 滚动到诊断面板，其余项滚动至页首。
+ * @returns {void} 更新 active 并发起页面滚动。
+ */
 function navigate(item) {
   active.value = item.id;
   if (item.id === 'diagnostics')

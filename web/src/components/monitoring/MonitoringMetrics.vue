@@ -6,6 +6,12 @@ const props = defineProps({
   telemetry: { type: Object, default: null },
 });
 defineEmits(['inspect-temperature']);
+/**
+ * 使用当前面板的采样和实时状态格式化指标，供模板调用，如 metric('battery')。
+ * @param {string} field 遥测字段名，例如 battery、temperature、x、y。
+ * @param {number} [digits=1] 小数位数；省略时由 formatMetric 使用默认值。
+ * @returns {string} 格式化数值或失效占位符“—”。
+ */
 const metric = (field, digits) => formatMetric(props.telemetry, props.fresh, field, digits);
 </script>
 

@@ -31,6 +31,10 @@ const client = mqtt.connect(values.broker.replace(/^tcp:/, 'mqtt:'), {
   reconnectPeriod: 1000,
 });
 let observed = 0;
+/**
+ * 结束独立 MQTT 观察会话，无参数；由数量限制、截止计时器或退出信号调用。
+ * @returns {void} 发起客户端关闭；end 事件回调随后负责清理截止计时器。
+ */
 function stop() {
   client.end(true);
 }

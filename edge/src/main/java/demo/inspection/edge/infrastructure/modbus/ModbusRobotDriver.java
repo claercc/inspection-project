@@ -22,6 +22,14 @@ public final class ModbusRobotDriver implements RobotDriver {
     private final int unit;
     private final ModbusClient client;
 
+    /**
+     * 装配模拟器点表对应的 Modbus 驱动；构造时只配置连接，首次读取才联网。
+     *
+     * @param deviceId 遥测中使用的业务设备编号。
+     * @param host Modbus 设备主机名或 IP。
+     * @param port 设备端口。
+     * @param unit Modbus Unit ID。
+     */
     public ModbusRobotDriver(String deviceId, String host, int port, int unit) {
         this.deviceId = deviceId;
         this.host = host;
@@ -30,6 +38,12 @@ public final class ModbusRobotDriver implements RobotDriver {
         client = new ModbusClient(host, port, unit, SOCKET_TIMEOUT_MS);
     }
 
+    /**
+     * 一次 FC03 连续读取整个演示点表，无参数；轮询和控制反馈共用此方法。
+     *
+     * @return 由同一原始响应换算的设备状态，附带 sampleId、读取端点和原始寄存器证据。
+     * @throws IOException 读取失败或响应不符合 Modbus 协议时抛出。
+     */
     @Override
     public Telemetry readState() throws IOException {
         int[] registers = client.readHolding(
@@ -67,10 +81,23 @@ public final class ModbusRobotDriver implements RobotDriver {
         );
     }
 
+    /**
+     * 按演示点表的统一比例将原始寄存器值换成业务测量值。
+     *
+     * @param registers 从地址 0 开始读取的完整原始寄存器数组。
+     * @param address 当前测量项的零基地址，在本数组中也对应下标。
+     * @return 原始整数值除以 MEASUREMENT_SCALE 后的数值。
+     */
     private double scaled(int[] registers, int address) {
         return registers[address] / RobotRegisters.MEASUREMENT_SCALE;
     }
 
+    /**
+     * 将命令类型映射为模拟器控制值并执行 FC06，无返回值。
+     *
+     * @param type START 写启动值，STOP 写停止值。
+     * @throws IOException 控制写入或回显校验失败时抛出；执行确认由上层读回完成。
+     */
     @Override
     public void writeControl(CommandType type) throws IOException {
         int control =
@@ -78,6 +105,9 @@ public final class ModbusRobotDriver implements RobotDriver {
         client.writeSingle(RobotRegisters.CONTROL, control);
     }
 
+    /**
+     * 关闭内部 Modbus 客户端，无参数、无返回值。
+     */
     @Override
     public void close() {
         client.close();

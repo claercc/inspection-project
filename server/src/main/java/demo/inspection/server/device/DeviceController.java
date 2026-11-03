@@ -24,17 +24,33 @@ public class DeviceController {
     private final ConsoleService console;
     private final DeviceEventStream events;
 
+    /**
+     * 注入 HTTP 入口需要的应用服务和推送适配器，由 Spring 创建。
+     *
+     * @param console 负责查询和控制提交的应用服务。
+     * @param events 负责 SSE 订阅与广播的适配器。
+     */
     public DeviceController(ConsoleService console, DeviceEventStream events) {
         this.console = console;
         this.events = events;
     }
 
+    /**
+     * 处理 GET /api/state，无参数，供页面和诊断工具查询。
+     *
+     * @return 当前设备与命令历史的完整状态快照。
+     */
     @GetMapping("/state")
     public ConsoleService.State state() {
         return console.state();
     }
 
     // 只表示 HTTP 服务存活；设备和 MQTT 是否就绪应查看 /state 中的连接状态。
+    /**
+     * 处理 GET /api/health，无参数；仅说明 HTTP 服务存活，不表示设备在线。
+     *
+     * @return 包含 status=UP、mode=SIMULATION 和 stage=A 的映射。
+     */
     @GetMapping("/health")
     public Map<String, String> health() {
         return Map.of("status", "UP", "mode", "SIMULATION", "stage", "A");
@@ -42,17 +58,35 @@ public class DeviceController {
 
     public record CommandRequest(String type) {}
 
+    /**
+     * 处理 POST /api/commands，返回操作记录；最终执行结果继续通过 SSE 观察。
+     *
+     * @param request 请求体，type 必须为 START 或 STOP。
+     * @return 本次提交对应的服务端命令记录。
+     * @throws CommandRejectedException 业务准入拒绝时抛出，并由本控制器转换为问题详情响应。
+     */
     @PostMapping("/commands")
     public CommandView command(@RequestBody CommandRequest request) {
         // HTTP 成功仅代表返回了操作记录，执行结果应通过相同 commandId 的后续状态确认。
         return console.issue(request.type());
     }
 
+    /**
+     * 处理 GET /api/events，无参数；建立订阅后立即推送一次快照。
+     *
+     * @return 由 Spring 持有的 SSE 连接，后续广播 state 事件。
+     */
     @GetMapping(value = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter events() {
         return events.subscribe();
     }
 
+    /**
+     * 将业务拒绝转成标准 HTTP 问题详情，由 Spring 异常处理流程调用。
+     *
+     * @param exception 准入规则抛出的业务异常。
+     * @return 带 400、409 或 503 状态码及原因说明的 ProblemDetail。
+     */
     @ExceptionHandler(CommandRejectedException.class)
     public ProblemDetail rejectedCommand(CommandRejectedException exception) {
         HttpStatus status = switch (exception.reason()) {

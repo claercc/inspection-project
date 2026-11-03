@@ -80,6 +80,18 @@ public final class Messages {
         Telemetry telemetry
     ) {}
 
+    /**
+     * 构造当前项目的 MQTT 主题，供发布和订阅共用。
+     *
+     * @param deviceId 设备编号，调用方应提供不含 MQTT 通配符或路径分隔符的业务编号。
+     * @param kind 消息类别，通常为 commands、telemetry 或 results；本方法不校验类别。
+     * @return 格式为 inspection/{deviceId}/{kind} 的主题字符串。
+     *
+     * <p>用法示例：
+     * <pre>{@code
+     * Messages.topic("robot-001", "telemetry");
+     * }</pre>
+     */
     public static String topic(String deviceId, String kind) {
         return "inspection/" + deviceId + "/" + kind;
     }

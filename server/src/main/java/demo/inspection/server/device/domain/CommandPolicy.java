@@ -8,6 +8,17 @@ public final class CommandPolicy {
 
     private CommandPolicy() {}
 
+    /**
+     * 在创建命令记录前校验准入规则，无返回值；通过时由调用方继续创建并发布命令。
+     *
+     * @param type 已解析的 START 或 STOP 控制类型。
+     * @param brokerConnected Broker 连接和订阅是否均已就绪。
+     * @param deviceOnline 当前设备采样是否新鲜且采集成功。
+     * @param robotRunning 最近一次读回是否为运行状态。
+     * @param awaitingAnyCommand 是否存在 PENDING/SENT 命令，供启动准入判断。
+     * @param awaitingStop 是否已有 PENDING/SENT 的停止命令，用于阻止重复 STOP。
+     * @throws CommandRejectedException Broker 不可用或操作与当前状态冲突时抛出，由 Controller 映射 HTTP 状态。
+     */
     public static void validate(
         CommandType type,
         boolean brokerConnected,

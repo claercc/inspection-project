@@ -34,6 +34,14 @@ public final class RobotSimulator implements AutoCloseable {
     private final int[] registers = new int[RobotRegisters.REGISTER_COUNT];
     private volatile boolean running;
 
+    /**
+     * 创建并绑定独立模拟器的 TCP 监听器；调用 start 后才开始处理连接与模拟时钟。
+     *
+     * @param host 监听地址，本地演示使用 127.0.0.1。
+     * @param port 监听端口，测试传 0 由系统分配空闲端口。
+     * @param unit 本模拟器响应的 Modbus Unit ID。
+     * @throws IOException 监听地址或端口绑定失败时抛出。
+     */
     public RobotSimulator(String host, int port, int unit) throws IOException {
         this.unit = unit;
         registers[RobotRegisters.BATTERY] = INITIAL_BATTERY;
@@ -42,10 +50,18 @@ public final class RobotSimulator implements AutoCloseable {
         listener.bind(new InetSocketAddress(host, port));
     }
 
+    /**
+     * 读取实际绑定的端口，主要供使用随机端口的 TCP 测试调用，无参数。
+     *
+     * @return ServerSocket 实际监听端口。
+     */
     public int port() {
         return listener.getLocalPort();
     }
 
+    /**
+     * 启动连接接收和模拟时钟，无参数、无返回值；每个实例应只调用一次。
+     */
     public void start() {
         running = true;
         clients.submit(this::acceptConnections);
@@ -58,6 +74,9 @@ public final class RobotSimulator implements AutoCloseable {
         );
     }
 
+    /**
+     * 由后台线程持续接受设备连接并分配处理任务，无参数、无返回值。
+     */
     private void acceptConnections() {
         while (running) {
             try {
@@ -75,6 +94,9 @@ public final class RobotSimulator implements AutoCloseable {
     }
 
     // 以下位置、电量和温度变化是演示规律，用于观察控制闭环，不代表真实设备或传感器模型。
+    /**
+     * 由定时时钟推进运行中设备的演示位置、电量与温度，无参数、无返回值。
+     */
     private synchronized void tick() {
         if (registers[RobotRegisters.RUN_STATE] != RobotRegisters.RUNNING) {
             return;
@@ -86,6 +108,11 @@ public final class RobotSimulator implements AutoCloseable {
         registers[RobotRegisters.TEMPERATURE] = INITIAL_TEMPERATURE + ((positionX / 5) % 200);
     }
 
+    /**
+     * 按 MBAP 帧边界循环处理一个客户端连接，无返回值；结束时关闭并移除连接。
+     *
+     * @param socket 已接受、已设置读取超时的 TCP 连接。
+     */
     private void serve(Socket socket) {
         try (
             socket;
@@ -127,6 +154,13 @@ public final class RobotSimulator implements AutoCloseable {
         }
     }
 
+    /**
+     * 在寄存器锁内解析并执行一个请求 PDU，供 TCP 连接处理器调用。
+     *
+     * @param request 已按 MBAP 长度读取、至少包含功能码的 PDU。
+     * @return 正常响应或带异常功能码的响应 PDU，不含 MBAP 头。
+     * @throws IOException 生成寄存器读取响应时发生 I/O 异常则抛出。
+     */
     private synchronized byte[] execute(byte[] request) throws IOException {
         int function = Byte.toUnsignedInt(request[0]);
         if (function != READ_HOLDING_REGISTERS && function != WRITE_SINGLE_REGISTER) {
@@ -143,6 +177,14 @@ public final class RobotSimulator implements AutoCloseable {
         return writeControl(address, value, request);
     }
 
+    /**
+     * 按模拟点表读取一段寄存器，调用方应已持有寄存器锁。
+     *
+     * @param address 零基起始地址。
+     * @param quantity 请求读取的寄存器数量。
+     * @return FC03 正常响应 PDU；数量或地址非法时返回对应异常 PDU。
+     * @throws IOException 组装读取响应失败时抛出。
+     */
     private byte[] readRegisters(int address, int quantity) throws IOException {
         if (quantity < 1 || quantity > 125) {
             return exceptionResponse(READ_HOLDING_REGISTERS, 3);
@@ -160,6 +202,14 @@ public final class RobotSimulator implements AutoCloseable {
         return bytes.toByteArray();
     }
 
+    /**
+     * 校验控制点并更新运行状态与写入计数，调用方应已持有寄存器锁。
+     *
+     * @param address 目标地址，演示点表仅允许 CONTROL。
+     * @param value 启动或停止的控制值。
+     * @param request 原始 FC06 请求，用于成功时回显。
+     * @return 成功时返回原请求 PDU；地址或控制值非法时返回异常 PDU。
+     */
     private byte[] writeControl(int address, int value, byte[] request) {
         if (address != RobotRegisters.CONTROL) {
             return exceptionResponse(WRITE_SINGLE_REGISTER, 2);
@@ -176,10 +226,20 @@ public final class RobotSimulator implements AutoCloseable {
         return request;
     }
 
+    /**
+     * 组装 Modbus 异常响应，供不支持的功能或非法参数分支调用。
+     *
+     * @param function 原请求的功能码。
+     * @param code 异常码，例如 1 为不支持功能、2 为非法地址、3 为非法值。
+     * @return 由异常功能码和异常码组成的两字节 PDU。
+     */
     private static byte[] exceptionResponse(int function, int code) {
         return new byte[] { (byte) (function | 0x80), (byte) code };
     }
 
+    /**
+     * 停止模拟时钟并关闭监听器和所有客户端连接，无参数、无返回值。
+     */
     @Override
     public void close() {
         running = false;
@@ -199,6 +259,12 @@ public final class RobotSimulator implements AutoCloseable {
         clients.shutdownNow();
     }
 
+    /**
+     * 读取环境配置并启动机器人模拟器独立进程，无返回值。
+     *
+     * @param args Java 命令行参数，当前未使用；端点配置来自环境变量。
+     * @throws Exception 启动失败或主线程等待被中断时抛出。
+     */
     public static void main(String[] args) throws Exception {
         RobotSimulator robot = new RobotSimulator(
             System.getenv().getOrDefault("MODBUS_BIND", "127.0.0.1"),
