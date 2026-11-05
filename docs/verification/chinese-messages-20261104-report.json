@@ -1,0 +1,383 @@
+{
+  "stage": "A",
+  "verifiedAt": "2026-11-03T16:27:03.380Z",
+  "runtime": {
+    "node": "v24.19.0",
+    "java": "E:\\workspace\\inspection-project\\.tools\\jdk-17.0.20.1+1\\bin\\java.exe"
+  },
+  "checks": [
+    {
+      "name": "原始寄存器来源核对",
+      "status": "PASS",
+      "evidence": "独立 FC03 读取与边缘端原始寄存器、温度换算值及独立 MQTT 记录一致"
+    },
+    {
+      "name": "中文接口错误提示",
+      "status": "PASS",
+      "evidence": "非法控制类型和格式错误的 JSON 请求均返回中文标题与原因"
+    },
+    {
+      "name": "页面导航与功能路线",
+      "status": "PASS",
+      "evidence": "规划模块保持禁用，路线弹窗可打开并用 Esc 关闭"
+    },
+    {
+      "name": "温度来源抽屉与独立采样核对",
+      "status": "PASS",
+      "evidence": "原始寄存器、采样编号、温度和主题与独立 MQTT 记录一致，快照仅在刷新后切换"
+    },
+    {
+      "name": "网页控制到设备读回的完整链路",
+      "status": "PASS",
+      "evidence": "启动命令 34cde128-d621-478b-9c92-bb0e87b36756 已确认，设备位置开始变化"
+    },
+    {
+      "name": "页面指令详情",
+      "status": "PASS",
+      "evidence": "弹窗显示完整命令编号和服务端已记录的关联事件"
+    },
+    {
+      "name": "页面 SSE 订阅生命周期",
+      "status": "PASS",
+      "evidence": "连续三次手动重连均关闭旧订阅，设备写入次数不增加"
+    },
+    {
+      "name": "运行状态下的重复启动保护",
+      "status": "PASS",
+      "evidence": "机器人运行中再次启动返回 HTTP 409"
+    },
+    {
+      "name": "重复 MQTT 控制命令",
+      "status": "PASS",
+      "evidence": "同一命令重复投递，模拟器 FC06 写入次数仍为 1"
+    },
+    {
+      "name": "页面停止操作与设备读回",
+      "status": "PASS",
+      "evidence": "停止命令 1013b90a-ab3a-4295-ae3e-1f041307bb64 已确认，设备位置停止变化"
+    },
+    {
+      "name": "非法类型与过期控制",
+      "status": "PASS",
+      "evidence": "边缘端拒绝两类命令并返回执行失败，没有新增设备写入"
+    },
+    {
+      "name": "命令编号与内容冲突",
+      "status": "PASS",
+      "evidence": "同一命令编号携带不同内容被拒绝，没有执行 FC06 写入"
+    },
+    {
+      "name": "设备离线时的来源抽屉",
+      "status": "PASS",
+      "evidence": "离线采样没有来源证据，抽屉不展示占位零寄存器或有效温度"
+    },
+    {
+      "name": "机器人离线与明确失败反馈",
+      "status": "PASS",
+      "evidence": "停止模拟器进程后显示机器人离线，停止命令在写入前失败"
+    },
+    {
+      "name": "Modbus 连接恢复",
+      "status": "PASS",
+      "evidence": "重启模拟器后收到新鲜 FC03 采样，设备已停止，写入次数为零"
+    },
+    {
+      "name": "启动未确认期间提交停止命令",
+      "status": "PASS",
+      "evidence": "启动等待反馈时页面停止按钮可用，服务端接受停止并拒绝重复的待确认停止命令"
+    },
+    {
+      "name": "忽略迟到遥测",
+      "status": "PASS",
+      "evidence": "较旧的 MQTT 采样不能覆盖当前状态或测量值"
+    },
+    {
+      "name": "采样过期时的来源抽屉",
+      "status": "PASS",
+      "evidence": "旧采样可作为锁定快照查看，当前不可用提示持续显示且刷新按钮禁用"
+    },
+    {
+      "name": "边缘数据过期与执行结果未知",
+      "status": "PASS",
+      "evidence": "停止边缘端后数据过期，八秒内未收到结果则记为结果未知，不自动重试"
+    },
+    {
+      "name": "边缘端重启后不回放历史控制",
+      "status": "PASS",
+      "evidence": "使用全新 MQTT 会话，忽略订阅时的保留控制消息，模拟器写入次数保持为零"
+    },
+    {
+      "name": "MQTT 消息服务断开与恢复",
+      "status": "PASS",
+      "evidence": "消息服务离线时返回 HTTP 503，恢复后两端重新订阅并读取当前状态，不回放控制"
+    },
+    {
+      "name": "手机端来源核对",
+      "status": "PASS",
+      "evidence": "390 像素宽度下来源抽屉无横向溢出，并可用 Esc 关闭"
+    },
+    {
+      "name": "页面浏览器验证",
+      "status": "PASS",
+      "evidence": "已保存桌面和手机截图，无未捕获脚本错误，手机页面无整页横向溢出"
+    }
+  ],
+  "finalState": {
+    "deviceId": "robot-e2e",
+    "simulated": true,
+    "mqttConnected": true,
+    "online": true,
+    "stale": false,
+    "connectionStatus": "ONLINE",
+    "lastReceivedAt": "2026-11-03T16:27:27.174191100Z",
+    "telemetryTopic": "inspection/robot-e2e/telemetry",
+    "telemetry": {
+      "deviceId": "robot-e2e",
+      "source": "MODBUS_TCP_SIMULATOR",
+      "capturedAt": "2026-11-03T16:27:27.172199500Z",
+      "robotOnline": true,
+      "runState": "STOPPED",
+      "x": 0.5,
+      "y": 0,
+      "battery": 99.9,
+      "temperature": 26.1,
+      "lastControl": 2,
+      "writeCount": 2,
+      "error": null,
+      "evidence": {
+        "sampleId": "f4b3663e-b565-4c92-8e06-7358a0fe7351",
+        "collectorId": "inspection-edge-robot-e2e",
+        "protocol": "MODBUS_TCP",
+        "host": "127.0.0.1",
+        "port": 11502,
+        "unitId": 1,
+        "functionCode": 3,
+        "startAddress": 0,
+        "registers": [
+          0,
+          5,
+          0,
+          999,
+          261,
+          2,
+          2
+        ]
+      }
+    },
+    "commands": [
+      {
+        "command": {
+          "commandId": "92c90138-ccd8-45d4-9b20-2e73218a33ba",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:24.573895900Z",
+          "expiresAt": "2026-11-03T16:27:32.573895900Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "已通过 FC06 写入并经 FC03 读回确认",
+        "updatedAt": "2026-11-03T16:27:24.577893800Z"
+      },
+      {
+        "command": {
+          "commandId": "d313981b-84a3-4a03-9382-a7fe2dd14b26",
+          "deviceId": "robot-e2e",
+          "type": "START",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:24.375089900Z",
+          "expiresAt": "2026-11-03T16:27:32.375089900Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "已通过 FC06 写入并经 FC03 读回确认",
+        "updatedAt": "2026-11-03T16:27:24.411569400Z"
+      },
+      {
+        "command": {
+          "commandId": "6151cdf2-940b-4cb5-ac28-3528168408f7",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:14.857345900Z",
+          "expiresAt": "2026-11-03T16:27:22.857345900Z"
+        },
+        "status": "RESULT_UNKNOWN",
+        "message": "截止时间内未收到设备反馈，请检查设备状态后手动处理",
+        "updatedAt": "2026-11-03T16:27:23.161689Z"
+      },
+      {
+        "command": {
+          "commandId": "59277595-8c94-44e5-826e-963951747f9c",
+          "deviceId": "robot-e2e",
+          "type": "START",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:14.827804100Z",
+          "expiresAt": "2026-11-03T16:27:22.827804100Z"
+        },
+        "status": "RESULT_UNKNOWN",
+        "message": "截止时间内未收到设备反馈，请检查设备状态后手动处理",
+        "updatedAt": "2026-11-03T16:27:23.161689Z"
+      },
+      {
+        "command": {
+          "commandId": "ce62edf7-1de2-4a78-a062-4f348b2ab18b",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:14.308925600Z",
+          "expiresAt": "2026-11-03T16:27:22.308925600Z"
+        },
+        "status": "FAILED",
+        "message": "连接被拒绝，请确认目标服务已启动且地址端口正确",
+        "updatedAt": "2026-11-03T16:27:14.313924600Z"
+      },
+      {
+        "command": {
+          "commandId": "1013b90a-ab3a-4295-ae3e-1f041307bb64",
+          "deviceId": "robot-e2e",
+          "type": "STOP",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:11.273418400Z",
+          "expiresAt": "2026-11-03T16:27:19.273418400Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "已通过 FC06 写入并经 FC03 读回确认",
+        "updatedAt": "2026-11-03T16:27:11.278419100Z"
+      },
+      {
+        "command": {
+          "commandId": "34cde128-d621-478b-9c92-bb0e87b36756",
+          "deviceId": "robot-e2e",
+          "type": "START",
+          "parameters": {},
+          "createdAt": "2026-11-03T16:27:09.539906400Z",
+          "expiresAt": "2026-11-03T16:27:17.539906400Z"
+        },
+        "status": "SUCCEEDED",
+        "message": "已通过 FC06 写入并经 FC03 读回确认",
+        "updatedAt": "2026-11-03T16:27:09.585017700Z"
+      }
+    ],
+    "diagnostics": [
+      {
+        "timestamp": "2026-11-03T16:27:24.577893800Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT 执行结果",
+        "commandId": "92c90138-ccd8-45d4-9b20-2e73218a33ba",
+        "summary": "设备反馈已确认：已通过 FC06 写入并经 FC03 读回确认"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:24.574897400Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "92c90138-ccd8-45d4-9b20-2e73218a33ba",
+        "summary": "停止命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:24.411569400Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT 执行结果",
+        "commandId": "d313981b-84a3-4a03-9382-a7fe2dd14b26",
+        "summary": "设备反馈已确认：已通过 FC06 写入并经 FC03 读回确认"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:24.375089900Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "d313981b-84a3-4a03-9382-a7fe2dd14b26",
+        "summary": "启动命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:23.161689Z",
+        "direction": "服务端",
+        "protocol": "反馈超时",
+        "commandId": "6151cdf2-940b-4cb5-ac28-3528168408f7",
+        "summary": "未收到设备执行结果，不自动重发"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:23.161689Z",
+        "direction": "服务端",
+        "protocol": "反馈超时",
+        "commandId": "59277595-8c94-44e5-826e-963951747f9c",
+        "summary": "未收到设备执行结果，不自动重发"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:14.858348600Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "6151cdf2-940b-4cb5-ac28-3528168408f7",
+        "summary": "停止命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:14.828321600Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "59277595-8c94-44e5-826e-963951747f9c",
+        "summary": "启动命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:14.675381100Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "Modbus 设备读回：已停止"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:14.313924600Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT 执行结果",
+        "commandId": "ce62edf7-1de2-4a78-a062-4f348b2ab18b",
+        "summary": "执行失败：连接被拒绝，请确认目标服务已启动且地址端口正确"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:14.312924200Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "ce62edf7-1de2-4a78-a062-4f348b2ab18b",
+        "summary": "停止命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:13.668201500Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "设备离线：网络连接中断，请检查设备与通信链路"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:11.278419100Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT 执行结果",
+        "commandId": "1013b90a-ab3a-4295-ae3e-1f041307bb64",
+        "summary": "设备反馈已确认：已通过 FC06 写入并经 FC03 读回确认"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:11.274417900Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "1013b90a-ab3a-4295-ae3e-1f041307bb64",
+        "summary": "停止命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:09.585017700Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT 执行结果",
+        "commandId": "34cde128-d621-478b-9c92-bb0e87b36756",
+        "summary": "设备反馈已确认：已通过 FC06 写入并经 FC03 读回确认"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:09.544934100Z",
+        "direction": "服务端 → 边缘端",
+        "protocol": "MQTT QoS1（不保留消息）",
+        "commandId": "34cde128-d621-478b-9c92-bb0e87b36756",
+        "summary": "启动命令已发送"
+      },
+      {
+        "timestamp": "2026-11-03T16:27:06.673759200Z",
+        "direction": "边缘端 → 服务端",
+        "protocol": "MQTT / FC03",
+        "commandId": null,
+        "summary": "Modbus 设备读回：已停止"
+      }
+    ]
+  },
+  "status": "PASS"
+}

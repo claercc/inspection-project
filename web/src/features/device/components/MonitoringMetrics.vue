@@ -1,5 +1,5 @@
 <script setup>
-import { formatMetric } from '../../utils/format';
+import { formatMetric } from '../../../utils/format';
 const props = defineProps({
   fresh: Boolean,
   running: Boolean,
@@ -113,7 +113,7 @@ const metric = (field, digits) => formatMetric(props.telemetry, props.fresh, fie
     </article>
     <article class="metric-card">
       <div class="metric-caption">
-        设备坐标
+        控制写入次数
         <svg
           class="metric-symbol"
           viewBox="0 0 24 24"
@@ -128,15 +128,13 @@ const metric = (field, digits) => formatMetric(props.telemetry, props.fresh, fie
         </svg>
       </div>
       <div class="metric-value coordinate-value mono">
-        {{ metric('x') }}
-        <span class="coordinate-divider">/</span>
-        {{ metric('y') }}
-        <em>m</em>
+        {{ metric('writeCount', 0) }}
+        <em>次</em>
       </div>
       <div class="metric-note">
-        X / Y
+        设备寄存器读回
         <span>·</span>
-        演示坐标系
+        模拟器重启归零
       </div>
     </article>
   </section>

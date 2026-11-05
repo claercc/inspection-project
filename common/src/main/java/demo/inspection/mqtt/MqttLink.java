@@ -1,6 +1,7 @@
 package demo.inspection.mqtt;
 
 import demo.inspection.protocol.Messages;
+import demo.inspection.support.ErrorMessages;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.Executors;
@@ -58,7 +59,9 @@ public final class MqttLink implements AutoCloseable {
                 @Override
                 public void connectionLost(Throwable cause) {
                     ready = false;
-                    System.err.println(clientId + " MQTT lost: " + cause);
+                    System.err.println(
+                        clientId + " MQTT 连接已断开：" + ErrorMessages.describe(cause)
+                    );
                 }
 
                 /**
@@ -87,7 +90,12 @@ public final class MqttLink implements AutoCloseable {
                             new String(message.getPayload(), StandardCharsets.UTF_8)
                         );
                     } catch (Exception exception) {
-                        System.err.println("Invalid MQTT message on " + topic + ": " + exception);
+                        System.err.println(
+                            "无效的 MQTT 消息，主题：" +
+                                topic +
+                                "，原因：" +
+                                ErrorMessages.describe(exception)
+                        );
                     }
                 }
             }
@@ -117,11 +125,11 @@ public final class MqttLink implements AutoCloseable {
             client.subscribe(subscriptions, subscriptionQos);
             ready = true;
             System.out.println(
-                client.getClientId() + " MQTT subscribed " + Arrays.toString(subscriptions)
+                client.getClientId() + " MQTT 已完成主题订阅：" + Arrays.toString(subscriptions)
             );
         } catch (MqttException exception) {
             ready = false;
-            System.err.println("MQTT connecting: " + exception.getMessage());
+            System.err.println("MQTT 连接或订阅失败：" + ErrorMessages.describe(exception));
         }
     }
 

@@ -1,5 +1,7 @@
 # 架构、分层与当前实现
 
+当前增量更新：前端设备模块已迁到 `web/src/features/device/`；后端原 `integration/ConsoleService` 已迁为 `device/DeviceService`，MQTT 连接/发布与消息解析分别提取到 `EdgeGateway` 和 `EdgeMessageHandler`。模拟摄像头预览和抓拍已经接通，调用关系见 [第三步说明](WORKSPACE_STEP3.md)。下文为此前阶段的设计与历史实现说明。
+
 更新：2026-11-02，完成现有模拟链路的可读性整理和规则提取。文件职责、阅读顺序和检查命令见 [代码阅读指南](CODE_GUIDE.md)。后续功能路线仍见 [前端优先实施说明](FRONTEND_FIRST_PLAN.md)。
 
 ## 当前已落地的边界

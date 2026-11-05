@@ -47,7 +47,7 @@ FC03 数量 1–125，超出点表返回异常 02；写只允许地址 5，非�
   "deviceId": "robot-001",
   "type": "START",
   "status": "SUCCEEDED",
-  "message": "FC06 write + FC03 device feedback confirmed",
+  "message": "已通过 FC06 写入并经 FC03 读回确认",
   "timestamp": "2026-10-11T04:00:00.100Z",
   "telemetry": {
     "deviceId": "robot-001",

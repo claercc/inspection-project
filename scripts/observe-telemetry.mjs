@@ -3,6 +3,7 @@ import mqtt from 'mqtt';
 import { parseArgs } from 'node:util';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { describeError } from './error-message.mjs';
 
 const { values } = parseArgs({
   options: {
@@ -14,9 +15,9 @@ const { values } = parseArgs({
   },
 });
 if (!/^[A-Za-z0-9_-]+$/.test(values.device))
-  throw new Error('device must contain only letters, digits, _ or -');
+  throw new Error('设备编号只能包含字母、数字、下划线或连字符');
 if (!/^\d+$/.test(values.count) || !/^\d+$/.test(values.seconds))
-  throw new Error('count and seconds must be nonnegative integers');
+  throw new Error('count 和 seconds 参数必须为非负整数');
 const output = values.output && path.resolve(values.output);
 if (output) {
   mkdirSync(path.dirname(output), { recursive: true });
@@ -41,16 +42,16 @@ function stop() {
 client.on('connect', () =>
   client.subscribe(topics, { qos: 1 }, (error) => {
     if (error) {
-      console.error(error.message);
+      console.error(`MQTT 主题订阅失败：${describeError(error)}`);
       process.exitCode = 1;
       stop();
     } else
       console.error(
-        `Independent MQTT observer subscribed: ${topics.join(', ')}. Open the source drawer now; compare sampleId.`,
+        `独立 MQTT 观察器已订阅：${topics.join(', ')}。现在可打开来源抽屉，核对采样编号 sampleId。`,
       );
   }),
 );
-client.on('error', (error) => console.error(`MQTT observer: ${error.message}`));
+client.on('error', (error) => console.error(`MQTT 观察器连接异常：${describeError(error)}`));
 client.on('message', (topic, payload, packet) => {
   try {
     const message = JSON.parse(payload.toString());
@@ -67,7 +68,7 @@ client.on('message', (topic, payload, packet) => {
     if (output) appendFileSync(output, line);
     if (Number(values.count) > 0 && ++observed >= Number(values.count)) stop();
   } catch (error) {
-    console.error(`Ignored malformed telemetry: ${error.message}`);
+    console.error(`已忽略格式无效的遥测消息：${describeError(error)}`);
   }
 });
 const deadline =

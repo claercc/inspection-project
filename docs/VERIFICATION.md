@@ -1,5 +1,22 @@
 # 阶段 A 验证记录
 
+## 2026-11-05：模拟摄像头预览与抓拍
+
+- 新增摄像头页面、模拟图像驱动、每秒预览帧、手动抓拍和 JPEG 下载；页面与图像均明确标注模拟来源。
+- 不使用数据库或服务端文件归档；抓拍只保留在当前浏览器会话，刷新后清空。
+- 完整构建通过：24 个 Java 测试、Checkstyle、Prettier、ESLint 和 Vue 生产构建通过。
+- `VERIFICATION_PREFIX=simulated-camera-step3` 的 24 项端到端检查全部通过，包含摄像头预览、抓拍、下载和原有设备通信故障恢复检查。
+- 证据：[回归报告](verification/simulated-camera-step3-report.json)、[摄像头页面](verification/simulated-camera-step3-current.png)、[桌面](verification/simulated-camera-step3-desktop.png)、[手机](verification/simulated-camera-step3-mobile.png)。海康 DS-2CD3T25-I3 尚未实物验收。
+
+## 2026-11-04：中文提示与日志回归
+
+- 工程自定义的接口错误、命令反馈、通信诊断、页面说明和脚本提示改为中文；命令值、状态码、JSON 字段、MQTT 主题与协议名称保持原约定。
+- Java 全模块构建与 24 个测试通过；Checkstyle、Prettier、ESLint 检查通过。
+- 以 `VERIFICATION_PREFIX=chinese-messages-20261104` 运行独立进程验证：23 项检查通过。新增非法命令类型与无效 JSON 的中文响应检查，并核对消息服务离线时的中文原因，以及成功反馈和诊断摘要。
+- 单独验证前端断网、非 JSON 响应和脚本连接被拒绝时的中文提示。桌面与手机截图已检查，无整页横向溢出或未捕获脚本错误。
+- Java 启动与 Maven 测试统一使用 UTF-8；PowerShell 脚本使用 UTF-8 BOM，兼容 Windows PowerShell 读取中文消息。未改写外部工具自带的输出或历史验证记录。
+- 证据：[回归报告](verification/chinese-messages-20261104-report.json)、[桌面](verification/chinese-messages-20261104-desktop.png)、[手机](verification/chinese-messages-20261104-mobile.png)。本轮仍为本地模拟验证，未验收 Docker 容器运行或真实硬件。
+
 ## 2026-11-02：代码整理与控制边界回归
 
 - Java 全模块 `mvn verify` 成功，Checkstyle 零违规，24 个测试通过（原 TCP 协议 5 个、edge 命令处理 7 个、server 规则 12 个）。

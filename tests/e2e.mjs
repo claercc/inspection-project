@@ -49,9 +49,12 @@ let browser, observer;
 function start(role) {
   const launches = {
     broker: [process.execPath, ['scripts/broker.mjs']],
-    robot: [java, ['-jar', 'simulator/robot/target/robot-simulator-0.1.0.jar']],
-    edge: [java, ['-jar', 'edge/target/edge-0.1.0.jar']],
-    server: [java, ['-jar', 'server/target/server-0.1.0.jar']],
+    robot: [
+      java,
+      ['-Dfile.encoding=UTF-8', '-jar', 'simulator/robot/target/robot-simulator-0.1.0.jar'],
+    ],
+    edge: [java, ['-Dfile.encoding=UTF-8', '-jar', 'edge/target/edge-0.1.0.jar']],
+    server: [java, ['-Dfile.encoding=UTF-8', '-jar', 'server/target/server-0.1.0.jar']],
     web: [
       process.execPath,
       [
@@ -131,11 +134,11 @@ async function until(fn, label, timeout = 20000) {
     }
     await delay(150);
   }
-  throw new Error(`Timeout: ${label} (see .run/verification logs)`);
+  throw new Error(`等待超时：${label}（请查看 .run/verification 日志）`);
 }
 /**
  * 查询隔离栈 /api/state 并断言 HTTP 200，无参数。
- * @returns {Promise<import('../web/src/api/device.js').DeviceState>} 当前设备与命令历史快照。
+ * @returns {Promise<import('../web/src/features/device/api.js').DeviceState>} 当前设备与命令历史快照。
  * @throws {Error} 网络异常、HTTP 状态断言失败或响应解析失败时，Promise 拒绝。
  */
 async function state() {
@@ -163,7 +166,7 @@ async function post(type) {
  */
 function pass(name, evidence) {
   checks.push({ name, status: 'PASS', evidence });
-  console.log(`PASS ${name}: ${evidence}`);
+  console.log(`通过 ${name}：${evidence}`);
 }
 /**
  * 经独立 MQTT 客户端投递控制消息，供重复投递、非法参数等通信场景调用。
@@ -188,13 +191,13 @@ function publish(command) {
 async function resultFor(id, count = 1) {
   return until(
     () => replies.get(id)?.length >= count && replies.get(id).at(-1),
-    `MQTT result ${id}`,
+    `MQTT 命令回执 ${id}`,
   );
 }
 /**
  * 等待服务端记录中某类型的最近一条命令变为成功，供首次启停闭环断言使用。
  * @param {'START'|'STOP'} type 要查询的命令类型；此辅助函数不按 commandId 区分同类型命令。
- * @returns {Promise<import('../web/src/api/device.js').CommandView>} 最近一条已确认成功的匹配记录。
+ * @returns {Promise<import('../web/src/features/device/api.js').CommandView>} 最近一条已确认成功的匹配记录。
  * @throws {Error} 未能在截止时间内观察到成功记录时，Promise 拒绝。
  */
 async function settled(type) {
@@ -202,7 +205,7 @@ async function settled(type) {
     const s = await state();
     const c = s.commands.find((c) => c.command.type === type);
     return c?.status === 'SUCCEEDED' && c;
-  }, `${type} readback`);
+  }, `${type} 设备读回`);
 }
 /**
  * 在独立观察脚本输出的 JSONL 中查找同一次采样，供来源抽屉的数据核对使用。
@@ -232,10 +235,7 @@ function independentlyObserved(sampleId, mqttTopic) {
 function readTemperatureDirectly() {
   return new Promise((resolve, reject) => {
     const socket = createConnection({ host: '127.0.0.1', port: 11502 });
-    const deadline = setTimeout(
-      () => socket.destroy(new Error('Independent Modbus read timeout')),
-      2000,
-    );
+    const deadline = setTimeout(() => socket.destroy(new Error('独立 Modbus 读取超时')), 2000);
     let bytes = Buffer.alloc(0);
     socket.on('connect', () => socket.write(Buffer.from([0, 77, 0, 0, 0, 6, 1, 3, 0, 4, 0, 1])));
     socket.on('data', (chunk) => {
@@ -270,7 +270,7 @@ try {
   start('edge');
   start('server');
   start('web');
-  await until(async () => (await state()).online, 'stack ready', 60000);
+  await until(async () => (await state()).online, '隔离测试栈就绪', 60000);
   start('sourceObserver');
   const initialState = await until(async () => {
     const s = await state();
@@ -279,7 +279,7 @@ try {
       independentlyObserved(s.telemetry.evidence.sampleId, s.telemetryTopic) &&
       s
     );
-  }, 'independent MQTT subscriber receives source sample');
+  }, '独立 MQTT 订阅者收到来源采样');
   const directRawTemperature = await readTemperatureDirectly();
   assert.equal(initialState.telemetry.evidence.registers[4], directRawTemperature);
   assert.equal(initialState.telemetry.temperature, directRawTemperature / 10);
@@ -289,10 +289,22 @@ try {
   assert.equal(initialState.telemetry.evidence.functionCode, 3);
   assert.equal(initialState.telemetry.evidence.startAddress, 0);
   assert.equal(initialState.telemetry.evidence.registers.length, 7);
-  pass(
-    'actual register provenance',
-    'independent FC03 socket read matches edge register[4], scaled temperature and separate MQTT subscriber',
-  );
+  pass('原始寄存器来源核对', '独立 FC03 读取与边缘端原始寄存器、温度换算值及独立 MQTT 记录一致');
+  const invalidTypeReply = await post('INVALID');
+  assert.equal(invalidTypeReply.status, 400);
+  const invalidTypeProblem = await invalidTypeReply.json();
+  assert.equal(invalidTypeProblem.title, '控制请求未被接受');
+  assert.match(invalidTypeProblem.detail, /控制类型必须为/);
+  const malformedReply = await fetch(`${base}/api/commands`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"type":',
+  });
+  assert.equal(malformedReply.status, 400);
+  const malformedProblem = await malformedReply.json();
+  assert.equal(malformedProblem.title, '请求内容格式错误');
+  assert.match(malformedProblem.detail, /请求内容无法解析/);
+  pass('中文接口错误提示', '非法控制类型和格式错误的 JSON 请求均返回中文标题与原因');
   observer = mqtt.connect('mqtt://127.0.0.1:18883', {
     clientId: 'inspection-e2e-observer',
     protocolVersion: 4,
@@ -342,24 +354,42 @@ try {
   page.on('pageerror', (e) => jsErrors.push(e.message));
   await page.goto(base);
   await page.getByTestId('start').waitFor();
-  await until(async () => page.getByTestId('start').isEnabled(), 'Vue telemetry online');
-  assert.equal(await page.locator('.nav-item').filter({ hasText: '巡检任务' }).isDisabled(), true);
-  assert.equal(await page.getByRole('button', { name: '＋ 新建巡检任务' }).isDisabled(), true);
-  await page.getByTestId('roadmap-shortcut').click();
-  await page.getByRole('heading', { name: '从一个按钮，到一条业务链路' }).waitFor();
+  await until(async () => page.getByTestId('start').isEnabled(), '页面遥测已上线');
+  assert.equal(await page.locator('.nav-item').count(), 3);
+  assert.equal(await page.locator('.nav-item').filter({ hasText: '摄像头' }).isEnabled(), true);
+  assert.equal(await page.locator('.nav-item').filter({ hasText: '采集记录' }).isDisabled(), true);
+  await page.getByTestId('open-diagnostics').click();
+  await page.getByRole('heading', { name: '连接与通信诊断' }).waitFor();
   await page.keyboard.press('Escape');
-  assert.equal(await page.locator('.roadmap-modal').isVisible(), false);
-  pass(
-    'frontend navigation and roadmap',
-    'planned modules remain disabled; roadmap dialog opens and closes with Escape',
+  assert.equal(await page.getByRole('heading', { name: '连接与通信诊断' }).isVisible(), false);
+  pass('设备工作台入口', '保留三个入口，未接入功能禁用，诊断按需打开并支持 Esc 关闭');
+  await page.locator('.nav-item').filter({ hasText: '摄像头' }).click();
+  await page.getByRole('heading', { name: /摄像头/u }).waitFor();
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="camera-preview"]')?.naturalWidth > 0,
   );
+  assert.equal(await page.getByText('模拟摄像头', { exact: true }).isVisible(), true);
+  await page.getByTestId('capture-camera').click();
+  await page.locator('.camera-capture-list article').waitFor();
+  assert.equal(
+    await page
+      .locator('.camera-capture-list article img')
+      .evaluate((image) => image.naturalWidth > 0),
+    true,
+  );
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载图片 ↓' }).click();
+  assert.match((await downloadPromise).suggestedFilename(), /^camera-.*\.jpg$/u);
+  pass('模拟摄像头预览与抓拍', '模拟标识清晰，预览、手动抓拍和 JPEG 下载均可使用');
+  await page.locator('.nav-item').filter({ hasText: '设备监控' }).click();
+  await page.getByTestId('start').waitFor();
   await page.getByTestId('temperature-source').click();
   await page.getByRole('heading', { name: '温度数据来源' }).waitFor();
   const drawerTelemetry = JSON.parse(await page.getByTestId('source-telemetry-json').textContent());
   const drawerTopic = await page.getByTestId('source-topic').innerText();
   const independentRecord = await until(
     () => independentlyObserved(drawerTelemetry.evidence.sampleId, drawerTopic),
-    'same sample in independent MQTT client',
+    '独立 MQTT 客户端中的同一采样',
   );
   assert.deepEqual(drawerTelemetry, independentRecord.telemetry);
   assert.equal(
@@ -389,8 +419,8 @@ try {
     .screenshot({ path: path.join(artifacts, `${artifactPrefix}-source-desktop.png`) });
   await page.keyboard.press('Escape');
   pass(
-    'temperature source drawer + independent sample',
-    'raw registers, sampleId, temperature and actual topic match independent MQTT JSON; snapshot stays fixed until refresh',
+    '温度来源抽屉与独立采样核对',
+    '原始寄存器、采样编号、温度和主题与独立 MQTT 记录一致，快照仅在刷新后切换',
   );
   await page.evaluate(() => {
     window.__states = [];
@@ -399,17 +429,22 @@ try {
   });
   await page.getByTestId('start').click();
   const startCommand = await settled('START');
-  await until(async () => (await state()).telemetry.x > 0, 'Modbus simulated movement');
+  assert.match(startCommand.message, /FC06 写入.*FC03 读回/);
+  assert.equal(
+    (await state()).diagnostics.every((event) => /[\u4e00-\u9fff]/u.test(event.summary)),
+    true,
+  );
+  await until(async () => (await state()).telemetry.x > 0, 'Modbus 模拟设备运动');
   await until(
     async () => (await page.getByTestId('run-state').innerText()) === '运行中',
-    'Vue running',
+    '页面显示运行中',
   );
   await page.waitForFunction(() =>
     window.__states.some((s) => s.telemetry?.runState === 'RUNNING'),
   );
   pass(
-    'Vue → REST → MQTT → edge → FC06/FC03 → SSE → Vue',
-    `START ${startCommand.command.commandId}; moving position; device readback SUCCEEDED`,
+    '网页控制到设备读回的完整链路',
+    `启动命令 ${startCommand.command.commandId} 已确认，设备位置开始变化`,
   );
   await page.getByTestId(`command-detail-${startCommand.command.commandId}`).click();
   await page.getByRole('heading', { name: '设备指令详情' }).waitFor();
@@ -421,37 +456,30 @@ try {
     true,
   );
   await page.keyboard.press('Escape');
-  pass(
-    'frontend command detail',
-    'dialog displays actual full commandId and recorded server events',
-  );
+  pass('页面指令详情', '弹窗显示完整命令编号和服务端已记录的关联事件');
   const subscriptionsBefore = await page.evaluate(() => window.__openEventSources);
   const writesBeforeReconnect = (await state()).telemetry.writeCount;
+  await page.getByTestId('open-diagnostics').click();
   for (let count = 0; count < 3; count++) {
     await page.getByTestId('reconnect').click();
     await until(
       async () => (await page.getByTestId('connection').innerText()) === '链路在线',
-      'manual SSE reconnect',
+      '手动重连实时订阅',
     );
   }
   assert.equal(await page.evaluate(() => window.__openEventSources), subscriptionsBefore);
   assert.equal((await state()).telemetry.writeCount, writesBeforeReconnect);
-  pass(
-    'frontend SSE lifecycle',
-    'three manual reconnects close previous EventSource; no extra device writes',
-  );
+  await page.keyboard.press('Escape');
+  pass('页面 SSE 订阅生命周期', '连续三次手动重连均关闭旧订阅，设备写入次数不增加');
   const conflict = await post('START');
   assert.equal(conflict.status, 409);
-  pass('single active movement guard', 'START while RUNNING returns HTTP 409');
+  pass('运行状态下的重复启动保护', '机器人运行中再次启动返回 HTTP 409');
   const writeCount = (await state()).telemetry.writeCount;
   await resultFor(startCommand.command.commandId);
   await publish(startCommand.command);
   await resultFor(startCommand.command.commandId, 2);
   assert.equal((await state()).telemetry.writeCount, writeCount);
-  pass(
-    'duplicate MQTT command',
-    `same commandId delivered twice, simulator FC06 writeCount stays ${writeCount}`,
-  );
+  pass('重复 MQTT 控制命令', `同一命令重复投递，模拟器 FC06 写入次数仍为 ${writeCount}`);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
   await page.screenshot({
     path: path.join(artifacts, `${artifactPrefix}-desktop.png`),
@@ -461,14 +489,14 @@ try {
   const stopCommand = await settled('STOP');
   await until(
     async () => (await page.getByTestId('run-state').innerText()) === '已停止',
-    'Vue stopped',
+    '页面显示已停止',
   );
   const stoppedX = (await state()).telemetry.x;
   await delay(1000);
   assert.equal((await state()).telemetry.x, stoppedX);
   pass(
-    'Vue STOP + physical feedback',
-    `STOP ${stopCommand.command.commandId}; position stops changing`,
+    '页面停止操作与设备读回',
+    `停止命令 ${stopCommand.command.commandId} 已确认，设备位置停止变化`,
   );
   const invalid = {
     commandId: 'invalid-command',
@@ -491,17 +519,17 @@ try {
   await publish(expired);
   assert.equal((await resultFor(expired.commandId)).status, 'FAILED');
   assert.equal((await state()).telemetry.writeCount, writesBeforeInvalid);
-  pass('invalid and expired controls', 'edge rejects both with FAILED, no device write');
+  pass('非法类型与过期控制', '边缘端拒绝两类命令并返回执行失败，没有新增设备写入');
   const writeBefore = (await state()).telemetry.writeCount;
   await publish({ ...startCommand.command, type: 'STOP' });
   assert.equal((await resultFor(startCommand.command.commandId, 3)).status, 'FAILED');
   assert.equal((await state()).telemetry.writeCount, writeBefore);
-  pass('commandId payload collision', 'different payload under same commandId rejected, no FC06');
+  pass('命令编号与内容冲突', '同一命令编号携带不同内容被拒绝，没有执行 FC06 写入');
   await stop('robot');
-  await until(async () => (await state()).connectionStatus === 'ROBOT_OFFLINE', 'robot offline');
+  await until(async () => (await state()).connectionStatus === 'ROBOT_OFFLINE', '机器人离线');
   await until(
     async () => (await page.getByTestId('run-state').innerText()) === '状态不可用',
-    'Vue hides offline telemetry',
+    '页面隐藏失效遥测',
   );
   assert.equal((await state()).telemetry.evidence, null);
   await page.getByTestId('temperature-source').click();
@@ -512,10 +540,7 @@ try {
     true,
   );
   await page.keyboard.press('Escape');
-  pass(
-    'source drawer on robot failure',
-    'offline telemetry has evidence=null; no fabricated zero register or valid temperature is displayed',
-  );
+  pass('设备离线时的来源抽屉', '离线采样没有来源证据，抽屉不展示占位零寄存器或有效温度');
   const offlineReply = await post('STOP');
   assert.equal(offlineReply.status, 200);
   const offline = await offlineReply.json();
@@ -523,18 +548,15 @@ try {
     async () =>
       (await state()).commands.find((c) => c.command.commandId === offline.command.commandId)
         ?.status === 'FAILED',
-    'definite offline failure',
+    '写入前设备离线的明确失败',
   );
-  pass(
-    'robot offline + definite failure',
-    'stopping independent robot process displays ROBOT_OFFLINE, STOP fails before write',
-  );
+  pass('机器人离线与明确失败反馈', '停止模拟器进程后显示机器人离线，停止命令在写入前失败');
   start('robot');
   await until(
     async () => (await state()).online && (await state()).telemetry.writeCount === 0,
-    'robot reconnect',
+    '机器人重新连接',
   );
-  pass('Modbus reconnect', 'restart simulator → fresh FC03 state, STOPPED, zero writes');
+  pass('Modbus 连接恢复', '重启模拟器后收到新鲜 FC03 采样，设备已停止，写入次数为零');
   await stop('edge');
   const pendingStartReply = await post('START');
   assert.equal(pendingStartReply.status, 200);
@@ -544,21 +566,18 @@ try {
       (await state()).commands.find(
         (entry) => entry.command.commandId === pendingStart.command.commandId,
       )?.status === 'SENT',
-    'START published while edge feedback is unavailable',
+    '边缘端反馈不可用时发布启动命令',
   );
-  await until(
-    async () => page.getByTestId('stop').isEnabled(),
-    'STOP remains enabled during START',
-  );
+  await until(async () => page.getByTestId('stop').isEnabled(), '启动等待反馈期间停止按钮仍可用');
   await page.getByTestId('stop').click();
   const pendingStopCommand = await until(async () => {
     const latest = (await state()).commands[0];
     return latest?.command.type === 'STOP' && latest.status === 'SENT' && latest;
-  }, 'browser STOP published before START feedback');
+  }, '启动反馈到达前通过页面发布停止命令');
   assert.equal((await post('STOP')).status, 409);
   pass(
-    'STOP during unconfirmed START',
-    'browser STOP stays available while START awaits feedback; server accepts STOP and rejects a duplicate pending STOP',
+    '启动未确认期间提交停止命令',
+    '启动等待反馈时页面停止按钮可用，服务端接受停止并拒绝重复的待确认停止命令',
   );
 
   const latestTelemetry = (await state()).telemetry;
@@ -575,34 +594,28 @@ try {
   );
   await delay(300);
   assert.deepEqual((await state()).telemetry, latestTelemetry);
-  pass(
-    'late telemetry ignored',
-    'older MQTT sample cannot overwrite current state or measurements',
-  );
-  await until(async () => (await state()).connectionStatus === 'EDGE_STALE', 'edge stale');
+  pass('忽略迟到遥测', '较旧的 MQTT 采样不能覆盖当前状态或测量值');
+  await until(async () => (await state()).connectionStatus === 'EDGE_STALE', '边缘端采样已过期');
   await until(
     async () => (await page.getByTestId('connection').innerText()) === '边缘数据已过期',
-    'Vue edge stale',
+    '页面显示边缘数据已过期',
   );
   await page.getByTestId('temperature-source').click();
   assert.equal(await page.getByTestId('source-live-status').innerText(), '当前实时采集不可用');
   assert.equal(await page.getByTestId('source-refresh').isDisabled(), true);
   await page.keyboard.press('Escape');
-  pass(
-    'source drawer on stale data',
-    'old sample may be inspected as a locked snapshot; current unavailability remains visible and refresh is disabled',
-  );
+  pass('采样过期时的来源抽屉', '旧采样可作为锁定快照查看，当前不可用提示持续显示且刷新按钮禁用');
   assert.equal((await post('START')).status, 409);
   await until(
     async () =>
       (await state()).commands.find(
         (c) => c.command.commandId === pendingStopCommand.command.commandId,
       )?.status === 'RESULT_UNKNOWN',
-    'unconfirmed command expiry',
+    '未确认命令到期',
   );
   pass(
-    'edge stale + result unknown',
-    'edge stopped → stale state; no result in 8s → RESULT_UNKNOWN; no automatic retry',
+    '边缘数据过期与执行结果未知',
+    '停止边缘端后数据过期，八秒内未收到结果则记为结果未知，不自动重试',
   );
   const retained = {
     ...invalid,
@@ -617,7 +630,7 @@ try {
     ),
   );
   start('edge');
-  await until(async () => (await state()).online, 'edge reconnect');
+  await until(async () => (await state()).online, '边缘端重新连接');
   assert.equal((await state()).telemetry.writeCount, 0);
   assert.equal(replies.has(retained.commandId), false);
   await new Promise((resolve, reject) =>
@@ -626,34 +639,38 @@ try {
     ),
   );
   pass(
-    'no control replay after edge restart',
-    'clean MQTT session; retained control delivered at subscription ignored; simulator writeCount remains 0',
+    '边缘端重启后不回放历史控制',
+    '使用全新 MQTT 会话，忽略订阅时的保留控制消息，模拟器写入次数保持为零',
   );
-  await until(async () => page.getByTestId('start').isEnabled(), 'Vue recovered');
+  await until(async () => page.getByTestId('start').isEnabled(), '页面连接恢复');
   await page.getByTestId('start').click();
-  await until(async () => (await state()).telemetry.runState === 'RUNNING', 'start after recovery');
-  await until(async () => page.getByTestId('stop').isEnabled(), 'STOP after recovery');
+  await until(async () => (await state()).telemetry.runState === 'RUNNING', '恢复后启动机器人');
+  await until(async () => page.getByTestId('stop').isEnabled(), '恢复后停止按钮可用');
   await page.getByTestId('stop').click();
   await until(
     async () =>
       (await state()).telemetry.runState === 'STOPPED' &&
       !(await state()).commands.some((c) => ['SENT', 'PENDING'].includes(c.status)),
-    'stop after recovery',
+    '恢复后停止机器人',
   );
   const writesBeforeBroker = (await state()).telemetry.writeCount;
   await stop('broker');
-  await until(async () => !(await state()).mqttConnected, 'broker offline');
-  assert.equal((await post('START')).status, 503);
+  await until(async () => !(await state()).mqttConnected, 'MQTT 消息服务离线');
+  const brokerOfflineReply = await post('START');
+  assert.equal(brokerOfflineReply.status, 503);
+  const brokerOfflineProblem = await brokerOfflineReply.json();
+  assert.equal(brokerOfflineProblem.title, '控制请求未被接受');
+  assert.equal(brokerOfflineProblem.detail, 'MQTT 消息服务未连接');
   start('broker');
-  await until(async () => (await state()).online, 'broker reconnect', 30000);
+  await until(async () => (await state()).online, 'MQTT 消息服务重新连接', 30000);
   assert.equal((await state()).telemetry.writeCount, writesBeforeBroker);
   pass(
-    'Broker loss + reconnect',
-    'HTTP 503 while MQTT offline, server/edge resubscribe and read current device state; no replay',
+    'MQTT 消息服务断开与恢复',
+    '消息服务离线时返回 HTTP 503，恢复后两端重新订阅并读取当前状态，不回放控制',
   );
   await until(
     async () => (await page.getByTestId('connection').innerText()) === '链路在线',
-    'Vue Broker recovery',
+    '页面显示消息链路恢复',
   );
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
@@ -677,15 +694,9 @@ try {
     .getByTestId('temperature-source-drawer')
     .screenshot({ path: path.join(artifacts, `${artifactPrefix}-source-mobile.png`) });
   await page.keyboard.press('Escape');
-  pass(
-    'mobile source inspection',
-    '390px source drawer is usable without horizontal overflow and closes with Escape',
-  );
+  pass('手机端来源核对', '390 像素宽度下来源抽屉无横向溢出，并可用 Esc 关闭');
   assert.deepEqual(jsErrors, []);
-  pass(
-    'Vue browser validation',
-    'desktop + mobile screenshots, no uncaught JavaScript errors, mobile has no page overflow',
-  );
+  pass('页面浏览器验证', '已保存桌面和手机截图，无未捕获脚本错误，手机页面无整页横向溢出');
   const final = await state();
   report.finalState = final;
   report.status = 'PASS';

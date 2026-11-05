@@ -1,4 +1,4 @@
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
+﻿$ProjectRoot = Split-Path -Parent $PSScriptRoot
 <#
 .SYNOPSIS
 查找本工程使用的 Java 启动程序，无参数。
@@ -15,7 +15,9 @@ function Get-ProjectJava {
     if ($env:JAVA_HOME -and (Test-Path -LiteralPath (Join-Path $env:JAVA_HOME 'bin\java.exe'))) {
         return Join-Path $env:JAVA_HOME 'bin\java.exe'
     }
-    return (Get-Command java -ErrorAction Stop).Source
+    $javaCommand = Get-Command java -ErrorAction SilentlyContinue
+    if (!$javaCommand) { throw '未找到 Java，请运行 scripts/bootstrap.ps1 或配置 JAVA_HOME。' }
+    return $javaCommand.Source
 }
 <#
 .SYNOPSIS
@@ -30,5 +32,7 @@ $maven = Get-ProjectMaven
 function Get-ProjectMaven {
     $portable = Join-Path $ProjectRoot '.tools\apache-maven-3.9.11\bin\mvn.cmd'
     if (Test-Path -LiteralPath $portable) { return $portable }
-    return (Get-Command mvn.cmd -ErrorAction Stop).Source
+    $mavenCommand = Get-Command mvn.cmd -ErrorAction SilentlyContinue
+    if (!$mavenCommand) { throw '未找到 Maven，请运行 scripts/bootstrap.ps1 或配置 PATH。' }
+    return $mavenCommand.Source
 }

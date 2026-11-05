@@ -1,5 +1,5 @@
 <script setup>
-import { formatTime } from '../../utils/format';
+import { formatTime } from '../../../utils/format';
 defineProps({
   diagnostics: { type: Array, default: () => [] },
 });

@@ -1,8 +1,7 @@
-package demo.inspection.server.integration;
+package demo.inspection.server.device;
 
-import demo.inspection.mqtt.MqttLink;
+import demo.inspection.protocol.CommandStatus;
 import demo.inspection.protocol.CommandType;
-import demo.inspection.protocol.Messages;
 import demo.inspection.protocol.Messages.Command;
 import demo.inspection.protocol.Messages.Result;
 import demo.inspection.protocol.Messages.Telemetry;
@@ -12,7 +11,8 @@ import demo.inspection.server.device.domain.CommandPolicy;
 import demo.inspection.server.device.domain.CommandRejectedException;
 import demo.inspection.server.device.domain.CommandRejectedException.Reason;
 import demo.inspection.server.device.domain.DeviceTelemetry;
-import jakarta.annotation.PreDestroy;
+import demo.inspection.server.integration.EdgeGateway;
+import demo.inspection.support.ErrorMessages;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,11 +23,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 /**
- * 协调 MQTT 消息与设备规则，向 HTTP/SSE 提供状态快照。
+ * 管理设备状态和控制规则，向 HTTP/SSE 提供状态快照；通信由 EdgeGateway 负责。
  * 状态读写使用同一对象锁；消息发布单独排序，避免等待网络应答时阻塞结果接收。
  */
 @Service
-public class ConsoleService {
+public class DeviceService {
 
     private static final int DIAGNOSTIC_LIMIT = 100;
 
@@ -53,59 +53,39 @@ public class ConsoleService {
         List<Diagnostic> diagnostics
     ) {}
 
-    private final String deviceId = System.getenv().getOrDefault("DEVICE_ID", "robot-001");
-    private final DeviceTelemetry deviceTelemetry = new DeviceTelemetry(deviceId);
+    private final String deviceId;
+    private final DeviceTelemetry deviceTelemetry;
     private final CommandHistory commandHistory = new CommandHistory();
     private final Deque<Diagnostic> diagnostics = new ArrayDeque<>();
-    private final MqttLink mqtt;
+    private final EdgeGateway gateway;
     // 该锁只负责命令接受与发布顺序；接收回调不会获取它，避免相互等待 PUBACK。
     private final Object commandPublicationLock = new Object();
 
     /**
-     * 读取设备编号和 Broker 环境配置，装配 MQTT 并启动后台连接，无参数，由 Spring 创建。
-     *
-     * @throws Exception MQTT 客户端装配失败时抛出。
+     * 创建设备业务状态，不在构造方法中建立网络连接。
+     * @param gateway 已装配的设备通信出口。
      */
-    public ConsoleService() throws Exception {
-        String brokerUrl = System.getenv().getOrDefault("MQTT_URL", "tcp://127.0.0.1:1883");
-        String[] subscriptions = {
-            Messages.topic(deviceId, "telemetry"),
-            Messages.topic(deviceId, "results"),
-        };
-        mqtt = new MqttLink(
-            brokerUrl,
-            "inspection-server-" + deviceId,
-            subscriptions,
-            this::receive
-        );
-        mqtt.start();
+    public DeviceService(EdgeGateway gateway) {
+        this.gateway = gateway;
+        this.deviceId = gateway.deviceId();
+        this.deviceTelemetry = new DeviceTelemetry(deviceId);
     }
 
     /**
-     * 处理 MQTT 入口消息并串行访问设备状态，无返回值；非法载荷会写入诊断。
-     *
-     * @param topic MQTT 回调提供的完整实际主题。
-     * @param json 主题对应的 UTF-8 JSON 字符串。
+     * 保存无法解析的接入消息诊断。
+     * @param message 已转换为中文的错误原因。
      */
-    private synchronized void receive(String topic, String json) {
-        try {
-            if (topic.equals(Messages.topic(deviceId, "telemetry"))) {
-                receiveTelemetry(topic, Messages.JSON.readValue(json, Telemetry.class));
-            } else if (topic.equals(Messages.topic(deviceId, "results"))) {
-                receiveResult(topic, Messages.JSON.readValue(json, Result.class));
-            }
-        } catch (Exception exception) {
-            log("IN", "MQTT", null, "Invalid payload: " + exception.getMessage());
-        }
+    public synchronized void recordMessageError(String message) {
+        log("接收", "MQTT", null, "消息载荷无效：" + message);
     }
 
     /**
-     * 接收新遥测并在在线/运行状态变化时记录诊断，无返回值；由 receive 在状态锁内调用。
+     * 接收新遥测并在在线/运行状态变化时记录诊断，无返回值；方法自身保护状态读写。
      *
      * @param topic 当前遥测的实际来源主题。
      * @param next 从 JSON 解析出的候选采样。
      */
-    private void receiveTelemetry(String topic, Telemetry next) {
+    public synchronized void receiveTelemetry(String topic, Telemetry next) {
         Telemetry previous = deviceTelemetry.latest();
         if (!deviceTelemetry.accept(next, topic, Instant.now())) {
             return;
@@ -115,30 +95,35 @@ public class ConsoleService {
             next.robotOnline() != previous.robotOnline() ||
             !Objects.equals(next.runState(), previous.runState());
         if (stateChanged) {
+            String runStateText = switch (next.runState()) {
+                case "RUNNING" -> "运行中";
+                case "STOPPED" -> "已停止";
+                default -> "状态未知";
+            };
             String summary = next.robotOnline()
-                ? "Modbus readback: " + next.runState()
-                : "Device offline: " + next.error();
-            log("EDGE → SERVER", "MQTT / FC03", null, summary);
+                ? "Modbus 设备读回：" + runStateText
+                : "设备离线：" + next.error();
+            log("边缘端 → 服务端", "MQTT / FC03", null, summary);
         }
     }
 
     /**
-     * 登记命令结果并尝试接收其附带采样，无返回值；需在状态锁内调用。
+     * 登记命令结果并尝试接收其附带采样，无返回值；方法自身保护状态读写。
      *
      * @param topic 结果消息的实际主题。
      * @param result 已解析的设备回执；匹配规则由 CommandHistory 处理。
      */
-    private void receiveResult(String topic, Result result) {
+    public synchronized void receiveResult(String topic, Result result) {
         if (!commandHistory.accept(result, Instant.now())) {
             return;
         }
         // 迟到的命令确认仍需记账；其中的旧遥测由 DeviceTelemetry 过滤，不能回退设备状态。
         deviceTelemetry.accept(result.telemetry(), topic, Instant.now());
         log(
-            "EDGE → SERVER",
-            "MQTT result",
+            "边缘端 → 服务端",
+            "MQTT 执行结果",
             result.commandId(),
-            result.status() + ": " + result.message()
+            CommandStatus.valueOf(result.status()).displayName() + "：" + result.message()
         );
     }
 
@@ -149,12 +134,12 @@ public class ConsoleService {
      *
      * <p>用法示例：
      * <pre>{@code
-     * ConsoleService.State snapshot = console.state();
+     * DeviceService.State snapshot = console.state();
      * }</pre>
      */
     public synchronized State state() {
         Instant now = Instant.now();
-        boolean connected = mqtt.isConnected();
+        boolean connected = gateway.isConnected();
         boolean stale = deviceTelemetry.isStale(now);
         boolean online = deviceTelemetry.isOnline(connected, now);
         return new State(
@@ -210,7 +195,10 @@ public class ConsoleService {
         try {
             commandType = CommandType.parse(type);
         } catch (IllegalArgumentException exception) {
-            throw new CommandRejectedException(Reason.INVALID_REQUEST, exception.getMessage());
+            throw new CommandRejectedException(
+                Reason.INVALID_REQUEST,
+                ErrorMessages.describe(exception)
+            );
         }
         // 多个 HTTP 请求可能并发到达，将准入与发布串行化，防止后接受的 STOP 先于 START 发出。
         synchronized (commandPublicationLock) {
@@ -232,7 +220,7 @@ public class ConsoleService {
      */
     private synchronized Command prepareCommand(CommandType commandType) {
         Instant now = Instant.now();
-        boolean brokerConnected = mqtt.isConnected();
+        boolean brokerConnected = gateway.isConnected();
         CommandPolicy.validate(
             commandType,
             brokerConnected,
@@ -251,28 +239,28 @@ public class ConsoleService {
      */
     private void publishCommand(Command command) {
         try {
-            mqtt.publish(Messages.topic(deviceId, "commands"), command);
+            gateway.sendCommand(command);
             synchronized (this) {
                 commandHistory.markPublished(command.commandId(), Instant.now());
                 log(
-                    "SERVER → EDGE",
-                    "MQTT QoS1 retain=false",
+                    "服务端 → 边缘端",
+                    "MQTT QoS1（不保留消息）",
                     command.commandId(),
-                    command.type() + " sent"
+                    CommandType.parse(command.type()).displayName() + "命令已发送"
                 );
             }
         } catch (Exception exception) {
             synchronized (this) {
                 commandHistory.markPublicationUnknown(
                     command.commandId(),
-                    exception.getMessage(),
+                    ErrorMessages.describe(exception),
                     Instant.now()
                 );
                 log(
-                    "SERVER → EDGE",
+                    "服务端 → 边缘端",
                     "MQTT",
                     command.commandId(),
-                    "RESULT_UNKNOWN: " + exception.getMessage()
+                    "执行结果未知：" + ErrorMessages.describe(exception)
                 );
             }
         }
@@ -284,7 +272,7 @@ public class ConsoleService {
     @Scheduled(fixedDelay = 500)
     public synchronized void expire() {
         for (String commandId : commandHistory.expire(Instant.now())) {
-            log("SERVER", "timeout", commandId, "Device result missing; no automatic resend");
+            log("服务端", "反馈超时", commandId, "未收到设备执行结果，不自动重发");
         }
     }
 
@@ -303,13 +291,5 @@ public class ConsoleService {
         while (diagnostics.size() > DIAGNOSTIC_LIMIT) {
             diagnostics.removeLast();
         }
-    }
-
-    /**
-     * 由 Spring 销毁回调关闭 MQTT 客户端，无参数、无返回值。
-     */
-    @PreDestroy
-    public void close() {
-        mqtt.close();
     }
 }

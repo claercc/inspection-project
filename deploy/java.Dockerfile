@@ -1,6 +1,7 @@
 FROM maven:3.9.11-eclipse-temurin-17 AS build
 WORKDIR /workspace
 COPY pom.xml ./
+COPY .mvn .mvn
 COPY config config
 COPY common common
 COPY server server

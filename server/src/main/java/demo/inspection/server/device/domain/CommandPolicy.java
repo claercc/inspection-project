@@ -28,14 +28,17 @@ public final class CommandPolicy {
         boolean awaitingStop
     ) {
         if (!brokerConnected) {
-            throw new CommandRejectedException(Reason.UNAVAILABLE, "MQTT Broker offline");
+            throw new CommandRejectedException(Reason.UNAVAILABLE, "MQTT 消息服务未连接");
         }
 
         // START 尚未确认时仍允许发送 STOP；已有待确认 STOP 时拒绝重复提交。
         // 允许提交 STOP 并不代表设备已经停下，仍需等待 edge 的执行反馈。
         if (type == CommandType.STOP) {
             if (awaitingStop) {
-                throw new CommandRejectedException(Reason.CONFLICT, "A STOP is awaiting feedback");
+                throw new CommandRejectedException(
+                    Reason.CONFLICT,
+                    "停止命令正在等待设备反馈，请勿重复提交"
+                );
             }
             return;
         }
@@ -44,17 +47,14 @@ public final class CommandPolicy {
         if (!deviceOnline) {
             throw new CommandRejectedException(
                 Reason.CONFLICT,
-                "Device state is unavailable; wait for fresh Modbus telemetry"
+                "设备状态不可用，请等待新的 Modbus 采样"
             );
         }
         if (awaitingAnyCommand) {
-            throw new CommandRejectedException(
-                Reason.CONFLICT,
-                "Another command is awaiting feedback"
-            );
+            throw new CommandRejectedException(Reason.CONFLICT, "已有命令正在等待设备反馈");
         }
         if (robotRunning) {
-            throw new CommandRejectedException(Reason.CONFLICT, "Robot is already running");
+            throw new CommandRejectedException(Reason.CONFLICT, "机器人已在运行");
         }
     }
 }

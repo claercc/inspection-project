@@ -33,7 +33,7 @@ defineEmits(['reconnect']);
         >
           01
         </span>
-        <strong>Vue</strong>
+        <strong>监控页面</strong>
         <small>HTTP / SSE</small>
       </div>
       <i></i>
@@ -44,7 +44,7 @@ defineEmits(['reconnect']);
         >
           02
         </span>
-        <strong>Server</strong>
+        <strong>服务端</strong>
         <small>Spring Boot</small>
       </div>
       <i></i>
@@ -55,7 +55,7 @@ defineEmits(['reconnect']);
         >
           03
         </span>
-        <strong>Broker</strong>
+        <strong>消息服务</strong>
         <small>MQTT</small>
       </div>
       <i></i>
@@ -66,7 +66,7 @@ defineEmits(['reconnect']);
         >
           04
         </span>
-        <strong>Edge</strong>
+        <strong>边缘端</strong>
         <small>设备采集</small>
       </div>
       <i></i>
@@ -77,7 +77,7 @@ defineEmits(['reconnect']);
         >
           05
         </span>
-        <strong>Robot</strong>
+        <strong>演示设备</strong>
         <small>Modbus TCP</small>
       </div>
     </div>

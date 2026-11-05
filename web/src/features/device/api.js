@@ -59,14 +59,24 @@
  * console.log(record.command.commandId); // 用此编号关联后续 SSE 反馈
  */
 export async function sendDeviceCommand(type) {
-  const response = await fetch('/api/commands', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type }),
-  });
-  const data = await response.json();
+  let response;
+  try {
+    response = await fetch('/api/commands', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type }),
+    });
+  } catch {
+    throw new Error('无法连接控制服务，请检查网络和服务运行状态。');
+  }
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`控制服务返回了无法解析的响应（HTTP ${response.status}），请检查服务日志。`);
+  }
   if (!response.ok) {
-    throw new Error(data.detail || data.message || `操作未接受（HTTP ${response.status}）`);
+    throw new Error(data?.detail || data?.message || `操作未接受（HTTP ${response.status}）`);
   }
   return data;
 }

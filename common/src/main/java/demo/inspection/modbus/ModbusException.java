@@ -13,7 +13,7 @@ public class ModbusException extends IOException {
      * @param code Modbus 异常响应中的无符号异常码。
      */
     public ModbusException(int code) {
-        super("Modbus exception code " + code);
+        super("Modbus 设备返回异常码：" + code);
         exceptionCode = code;
     }
 

@@ -1,5 +1,5 @@
 <script setup>
-import { statusLabels } from '../../config/deviceStatus';
+import { statusLabels } from '../../../config/deviceStatus';
 defineProps({
   deviceId: { type: String, default: 'robot-001' },
   canStart: Boolean,
@@ -65,7 +65,7 @@ defineEmits(['control']);
       <div>
         <h3>{{ deviceId }}</h3>
         <p>
-          虚拟巡检机器人
+          模拟设备
           <span>·</span>
           单设备模式
         </p>
@@ -78,7 +78,7 @@ defineEmits(['control']);
       </div>
       <div>
         <span>操作范围</span>
-        <strong>模拟运动启停</strong>
+        <strong>设备启停</strong>
       </div>
     </div>
     <div class="control-buttons">
@@ -98,7 +98,7 @@ defineEmits(['control']);
             fill="currentColor"
           />
         </svg>
-        启动机器人
+        启动设备
       </button>
       <button
         class="button secondary"
@@ -121,7 +121,7 @@ defineEmits(['control']);
             stroke-width="1.6"
           />
         </svg>
-        停止机器人
+        停止设备
       </button>
     </div>
     <p
@@ -141,19 +141,6 @@ defineEmits(['control']);
       </strong>
       <strong v-else>等待操作</strong>
       <p>{{ pending ? '指令已提交，等待设备读回反馈。' : '执行成功以设备状态读回为准。' }}</p>
-    </div>
-    <div class="planned-control">
-      <div>
-        <span>巡检任务</span>
-        <span class="badge neutral">规划中</span>
-      </div>
-      <button
-        class="button ghost"
-        disabled
-        title="尚未实现：下一步先设计新建任务表单，再接后端任务用例"
-      >
-        ＋ 新建巡检任务
-      </button>
     </div>
   </section>
 </template>

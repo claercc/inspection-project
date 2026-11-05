@@ -4,9 +4,11 @@
 
 ## 从哪里读
 
-前端从 `web/src/views/monitoring/MonitoringView.vue` 开始。页面只组合面板；指标、场景、控制、趋势、连接、指令历史与诊断分别位于 `components/monitoring/`。页面状态和订阅生命周期在 `composables/useDeviceConsole.js`，网络请求在 `api/device.js`，状态文字与显示格式分别在 `config/deviceStatus.js` 和 `utils/format.js`。
+前端从 `web/src/features/device/DevicePage.vue` 开始。设备相关组件在同目录的 `components/`，页面状态和订阅生命周期在 `useDevice.js`，网络请求在 `api.js`。页面展示指标、趋势、控制和命令记录，连接与诊断按需打开。状态文字与显示格式仍分别在 `config/deviceStatus.js` 和 `utils/format.js`。摄像头页面已经启用，持久化采集记录入口保持禁用。
 
-后端从 `DeviceController` 的接口进入 `ConsoleService`。HTTP 错误映射留在 Controller；SSE 订阅与广播由 `DeviceEventStream` 管理。`device/domain/` 中的 `CommandPolicy` 决定是否接受命令，`CommandHistory` 管理记录与状态转换，`DeviceTelemetry` 管理最新采样与过期判定。这些规则可以在不启动 MQTT、Spring 或浏览器的情况下测试。
+摄像头页面从 `web/src/features/camera/CameraPage.vue` 开始，接口封装在同目录的 `api.js`。后端 `camera/CameraController` 提供信息、预览帧和抓拍接口，`CameraService` 只编排图像获取，`CameraDriver` 隔离具体设备实现。当前注入的是 `SimulatedCameraDriver`，生成的画面始终带模拟标识。
+
+后端从 `device/DeviceController` 进入 `device/DeviceService`，后者管理设备状态、控制准入和命令记录。`integration/EdgeGateway` 负责 MQTT 生命周期和发布；`integration/EdgeMessageHandler` 解析接收消息并调用设备服务。配置集中在 `application.yml`，继续兼容 DEVICE_ID / MQTT_URL 环境变量。SSE 由 `DeviceEventStream` 广播。现有 `device/domain/` 中的校验、命令历史和采样规则继续复用。
 
 edge 从 `EdgeApplication` 开始，它装配设备驱动、MQTT 和单线程执行器。`DeviceCommandHandler` 处理校验、去重、写入和读回；`RobotDriver` 描述它需要的设备操作；`ModbusRobotDriver` 实现寄存器读取、换算与原始数据证据。模拟器点表的名称统一定义在 `common` 的 `RobotRegisters`。
 
@@ -24,7 +26,7 @@ Java 方法使用 Javadoc，前端与 Node 脚本使用 JSDoc，PowerShell 函�
 
 异步函数分别说明 HTTP/MQTT 提交结束与设备执行确认的含义。Java 的 void 方法和构造器不添加无效的 `@return` 标签，在正文说明副作用；JS 异步无数据返回使用 `Promise<void>`。错误会被内部处理的函数说明提示或状态更新方式，确实向外抛出或拒绝 Promise 的场景才列异常。
 
-阅读例子可从 `web/src/api/device.js`、`web/src/utils/format.js`、`common/.../ModbusClient.java` 和 `server/.../CommandHistory.java` 开始。前端返回的设备快照、命令记录和页面会话对象也有 JSDoc 字段说明，可供编辑器悬停查看。
+阅读例子可从 `web/src/features/device/api.js`、`web/src/utils/format.js`、`common/.../ModbusClient.java` 和 `server/.../CommandHistory.java` 开始。前端返回的设备快照、命令记录和页面会话对象也有 JSDoc 字段说明，可供编辑器悬停查看。
 
 ## 日常命令
 

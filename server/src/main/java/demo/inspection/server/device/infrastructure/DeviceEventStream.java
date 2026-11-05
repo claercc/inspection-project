@@ -1,6 +1,6 @@
 package demo.inspection.server.device.infrastructure;
 
-import demo.inspection.server.integration.ConsoleService;
+import demo.inspection.server.device.DeviceService;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,7 +11,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 @Component
 public class DeviceEventStream {
 
-    private final ConsoleService console;
+    private final DeviceService console;
     private final Set<SseEmitter> clients = ConcurrentHashMap.newKeySet();
 
     /**
@@ -19,7 +19,7 @@ public class DeviceEventStream {
      *
      * @param console 提供当前状态快照的服务。
      */
-    public DeviceEventStream(ConsoleService console) {
+    public DeviceEventStream(DeviceService console) {
         this.console = console;
     }
 
@@ -48,7 +48,7 @@ public class DeviceEventStream {
         if (clients.isEmpty()) {
             return;
         }
-        ConsoleService.State state = console.state();
+        DeviceService.State state = console.state();
         clients.forEach(client -> send(client, state));
     }
 
@@ -58,7 +58,7 @@ public class DeviceEventStream {
      * @param client 当前 SSE 订阅对象。
      * @param state 要序列化并发送的设备状态快照。
      */
-    private void send(SseEmitter client, ConsoleService.State state) {
+    private void send(SseEmitter client, DeviceService.State state) {
         try {
             client.send(SseEmitter.event().name("state").data(state));
         } catch (Exception exception) {

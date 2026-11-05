@@ -6,7 +6,7 @@ import java.time.Instant;
 
 /**
  * 保存当前设备最新的有效采样及接收信息。
- * 对象自身不加锁，由 ConsoleService 的状态锁统一串行访问。
+ * 对象自身不加锁，由 DeviceService 的状态锁统一串行访问。
  */
 public final class DeviceTelemetry {
 

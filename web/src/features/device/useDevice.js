@@ -1,15 +1,15 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
-import { sendDeviceCommand, subscribeDeviceState } from '../api/device';
-import { statusLabels } from '../config/deviceStatus';
+import { sendDeviceCommand, subscribeDeviceState } from './api';
+import { statusLabels } from '../../config/deviceStatus';
 
 /**
  * @typedef {object} DeviceConsoleSession useDeviceConsole 暴露给页面的会话对象。
- * @property {import('vue').Ref<import('../api/device.js').DeviceState|null>} state 最新服务端快照。
+ * @property {import('vue').Ref<import('./api.js').DeviceState|null>} state 最新服务端快照。
  * @property {import('vue').Ref<boolean>} stream 网页实时订阅是否可用。
- * @property {import('vue').ComputedRef<import('../api/device.js').Telemetry|null|undefined>} telemetry 当前采样。
+ * @property {import('vue').ComputedRef<import('./api.js').Telemetry|null|undefined>} telemetry 当前采样。
  * @property {import('vue').ComputedRef<boolean>} fresh 当前采样是否可作为实时测量值使用。
  * @property {import('vue').ComputedRef<boolean>} running 新鲜采样是否表明机器人正在运行。
- * @property {import('vue').ComputedRef<import('../api/device.js').CommandView[]>} commands 当前命令历史。
+ * @property {import('vue').ComputedRef<import('./api.js').CommandView[]>} commands 当前命令历史。
  * @property {import('vue').ComputedRef<object[]>} diagnostics 当前诊断事件。
  * @property {import('vue').Ref<Array<{at: string, temperature: number}>>} samples 当前会话最近 60 个温度采样。
  * @property {import('vue').Ref<string>} error 页面操作或订阅错误提示。
@@ -81,7 +81,7 @@ export function useDeviceConsole() {
     closeSubscription = subscribeDeviceState({
       /**
        * 处理一次 SSE 状态推送，更新页面状态与本次会话的温度曲线。
-       * @param {import('../api/device.js').DeviceState} next 已解析的服务端快照。
+       * @param {import('./api.js').DeviceState} next 已解析的服务端快照。
        * @returns {void} 直接更新 state、stream 和 samples。
        */
       onState(next) {

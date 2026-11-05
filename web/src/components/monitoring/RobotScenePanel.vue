@@ -31,7 +31,7 @@ const robotX = computed(() => {
       </span>
     </div>
     <div class="scene-toolbar">
-      <span>配电室 / POWER DISTRIBUTION ROOM</span>
+      <span>配电室巡检区域</span>
       <span class="scene-scale">0 — 100 m</span>
     </div>
     <div class="floor-scene">
@@ -150,7 +150,7 @@ const robotX = computed(() => {
             font-size="9"
             letter-spacing="2"
           >
-            CABINET 0{{ index + 1 }}
+            柜体编号 0{{ index + 1 }}
           </text>
         </g>
         <path
@@ -223,7 +223,7 @@ const robotX = computed(() => {
           font-size="9"
           letter-spacing="2"
         >
-          SIMULATED SCENE · 非导航地图
+          模拟场景 · 非导航地图
         </text>
       </svg>
     </div>

@@ -85,7 +85,7 @@ defineExpose({ open });
   >
     <div class="source-drawer-header">
       <div>
-        <span class="section-kicker">SAMPLE INSPECTOR / 采样核对</span>
+        <span class="section-kicker">采样核对</span>
         <h2 id="temperature-source-title">温度数据来源</h2>
       </div>
       <button
@@ -119,7 +119,7 @@ defineExpose({ open });
         {{ hasEvidence ? snapshotTemperature.toFixed(1) : '—' }}
         <span>°C</span>
       </div>
-      <p>设备为软件模拟器；数据由 edge 通过 Modbus TCP 读取，经 MQTT、server 和 SSE 到达本页面。</p>
+      <p>设备为软件模拟器；数据由边缘端通过 Modbus TCP 读取，经 MQTT、服务端和 SSE 到达本页面。</p>
       <div class="source-snapshot-actions">
         <button
           class="button secondary"
@@ -179,7 +179,7 @@ defineExpose({ open });
           </dd>
         </div>
         <div>
-          <dt>Unit ID</dt>
+          <dt>设备单元（Unit ID）</dt>
           <dd>{{ evidence.unitId }}</dd>
         </div>
         <div>
@@ -272,9 +272,9 @@ defineExpose({ open });
       </p>
       <pre class="source-code">{{ observerCommand }}</pre>
       <p class="source-explanation">
-        这是本机默认 Broker（1883）的命令。其他环境使用 --broker mqtt://地址:端口。脚本直接订阅
-        MQTT，不访问 server API；控制台里的相同采样由独立连接接收。旧采样不
-        retain，订阅前的记录不能从 Broker 补取。
+        这是本机默认 MQTT 消息服务（1883）的命令。其他环境使用 --broker
+        mqtt://地址:端口。脚本直接订阅
+        MQTT，不访问服务端接口；控制台里的相同采样由独立连接接收。消息服务不保留旧采样，订阅前的记录不能补取。
       </p>
     </section>
 
@@ -286,7 +286,7 @@ defineExpose({ open });
       </p>
     </section>
     <details class="source-section source-json">
-      <summary>查看 server 转发的这条遥测 JSON</summary>
+      <summary>查看服务端转发的这条遥测 JSON</summary>
       <pre data-testid="source-telemetry-json">{{
         JSON.stringify(snapshot?.telemetry, null, 2)
       }}</pre>

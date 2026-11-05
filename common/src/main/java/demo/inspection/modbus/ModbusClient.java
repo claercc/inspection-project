@@ -87,7 +87,7 @@ public final class ModbusClient implements AutoCloseable {
      */
     public synchronized int[] readHolding(int address, int quantity) throws IOException {
         if (quantity < 1 || quantity > MAX_REGISTER_QUANTITY) {
-            throw new IllegalArgumentException("quantity must be 1..125");
+            throw new IllegalArgumentException("寄存器读取数量必须在 1～125 之间");
         }
         byte[] response = request(READ_HOLDING_REGISTERS, address, quantity);
         int expectedByteCount = quantity * 2;
@@ -96,7 +96,7 @@ public final class ModbusClient implements AutoCloseable {
             Byte.toUnsignedInt(response[1]) != expectedByteCount
         ) {
             close();
-            throw new IOException("FC03 byte count mismatch");
+            throw new IOException("FC03 响应字节数与请求数量不一致");
         }
         int[] registers = new int[quantity];
         for (int index = 0; index < quantity; index++) {
@@ -132,7 +132,7 @@ public final class ModbusClient implements AutoCloseable {
         };
         if (!Arrays.equals(response, expectedEcho)) {
             close();
-            throw new IOException("FC06 echo mismatch");
+            throw new IOException("FC06 写入回显与请求不一致");
         }
     }
 
@@ -200,7 +200,7 @@ public final class ModbusClient implements AutoCloseable {
         ) {
             throw new IOException(
                 String.format(
-                    "Invalid MBAP: tx=%d, protocol=%d, length=%d, unit=%d",
+                    "MBAP 响应头无效：事务编号=%d，协议编号=%d，长度=%d，设备单元=%d",
                     responseTransactionId,
                     protocolId,
                     length,
@@ -216,12 +216,12 @@ public final class ModbusClient implements AutoCloseable {
         // 功能码最高位置 1 表示设备返回协议异常，与网络断线或超时分开处理。
         if (actualFunction == (function | 0x80)) {
             if (response.length != 2) {
-                throw new IOException("Malformed exception response");
+                throw new IOException("Modbus 异常响应格式不正确");
             }
             throw new ModbusException(Byte.toUnsignedInt(response[1]));
         }
         if (actualFunction != function) {
-            throw new IOException("Function code mismatch");
+            throw new IOException("响应功能码与请求不一致");
         }
         return response;
     }

@@ -3,11 +3,11 @@ package demo.inspection.server.device;
 import demo.inspection.server.device.domain.CommandHistory.CommandView;
 import demo.inspection.server.device.domain.CommandRejectedException;
 import demo.inspection.server.device.infrastructure.DeviceEventStream;
-import demo.inspection.server.integration.ConsoleService;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,12 +16,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-/** 对外暴露状态查询、控制提交和 SSE 订阅，业务准入判断交给 ConsoleService。 */
+/** 对外暴露状态查询、控制提交和 SSE 订阅，业务准入判断交给 DeviceService。 */
 @RestController
 @RequestMapping("/api")
 public class DeviceController {
 
-    private final ConsoleService console;
+    private final DeviceService console;
     private final DeviceEventStream events;
 
     /**
@@ -30,7 +30,7 @@ public class DeviceController {
      * @param console 负责查询和控制提交的应用服务。
      * @param events 负责 SSE 订阅与广播的适配器。
      */
-    public DeviceController(ConsoleService console, DeviceEventStream events) {
+    public DeviceController(DeviceService console, DeviceEventStream events) {
         this.console = console;
         this.events = events;
     }
@@ -41,7 +41,7 @@ public class DeviceController {
      * @return 当前设备与命令历史的完整状态快照。
      */
     @GetMapping("/state")
-    public ConsoleService.State state() {
+    public DeviceService.State state() {
         return console.state();
     }
 
@@ -94,6 +94,22 @@ public class DeviceController {
             case UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
             case CONFLICT -> HttpStatus.CONFLICT;
         };
-        return ProblemDetail.forStatusAndDetail(status, exception.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, exception.getMessage());
+        problem.setTitle("控制请求未被接受");
+        return problem;
+    }
+
+    /**
+     * 将无法解析的控制请求体转换为中文提示，由 Spring 异常处理流程调用，无参数。
+     * @return 状态码为 400 的问题详情。
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ProblemDetail invalidRequestBody() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+            HttpStatus.BAD_REQUEST,
+            "请求内容无法解析，请提供有效的 JSON，并使用 type 字段指定启动或停止。"
+        );
+        problem.setTitle("请求内容格式错误");
+        return problem;
     }
 }

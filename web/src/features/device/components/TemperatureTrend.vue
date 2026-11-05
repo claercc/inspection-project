@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-import { formatMetric, formatTime } from '../../utils/format';
+import { formatMetric, formatTime } from '../../../utils/format';
 const props = defineProps({
   fresh: Boolean,
   telemetry: { type: Object, default: null },

@@ -8,6 +8,7 @@ import demo.inspection.protocol.Messages;
 import demo.inspection.protocol.Messages.Command;
 import demo.inspection.protocol.Messages.Result;
 import demo.inspection.protocol.Messages.Telemetry;
+import demo.inspection.support.ErrorMessages;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
@@ -83,14 +84,14 @@ public final class EdgeApplication implements AutoCloseable {
                 0,
                 0,
                 0,
-                exception.getMessage(),
+                ErrorMessages.describe(exception),
                 null
             );
         }
         try {
             mqtt.publish(Messages.topic(deviceId, "telemetry"), telemetry);
         } catch (Exception exception) {
-            System.err.println("Telemetry publish: " + exception.getMessage());
+            System.err.println("遥测消息发布失败：" + ErrorMessages.describe(exception));
         }
     }
 
@@ -110,7 +111,7 @@ public final class EdgeApplication implements AutoCloseable {
             // 结果消息之后再采集一次，使监控状态尽快反映命令后的设备读回。
             poll();
         } catch (Exception exception) {
-            System.err.println("Invalid command: " + exception);
+            System.err.println("控制命令无效：" + ErrorMessages.describe(exception));
         }
     }
 
@@ -124,7 +125,8 @@ public final class EdgeApplication implements AutoCloseable {
             mqtt.publish(Messages.topic(deviceId, "results"), result);
         } catch (Exception exception) {
             System.err.println(
-                "Result delivery failed (cached, no automatic command retry): " + exception
+                "执行结果发送失败（已缓存，不自动重试控制命令）：" +
+                    ErrorMessages.describe(exception)
             );
         }
     }

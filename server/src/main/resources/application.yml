@@ -1,3 +1,6 @@
+inspection:
+  device-id: ${DEVICE_ID:robot-001}
+  mqtt-url: ${MQTT_URL:tcp://127.0.0.1:1883}
 server:
   address: ${SERVER_BIND:127.0.0.1}
   port: ${SERVER_PORT:8080}

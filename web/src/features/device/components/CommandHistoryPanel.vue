@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue';
-import { statusLabels } from '../../config/deviceStatus';
-import { formatTime } from '../../utils/format';
+import { statusLabels } from '../../../config/deviceStatus';
+import { formatTime } from '../../../utils/format';
 const props = defineProps({
   commands: { type: Array, default: () => [] },
   diagnostics: { type: Array, default: () => [] },
@@ -21,7 +21,7 @@ const commandEvents = computed(() =>
 );
 /**
  * 选中命令并在 DOM 更新后打开详情，供指令行的“详情”按钮调用。
- * @param {import('../../api/device.js').CommandView} item 当前行的服务端命令记录。
+ * @param {import('../api.js').CommandView} item 当前行的服务端命令记录。
  * @returns {Promise<void>} 详情内容已更新且已调用 showModal 后兑现。
  */
 async function showCommand(item) {
@@ -121,7 +121,7 @@ async function showCommand(item) {
     <template v-if="selectedCommand">
       <div class="modal-heading">
         <div>
-          <span class="section-kicker">COMMAND DETAIL</span>
+          <span class="section-kicker">设备指令</span>
           <h2 id="command-dialog-title">设备指令详情</h2>
         </div>
         <button
@@ -139,7 +139,10 @@ async function showCommand(item) {
         </div>
         <div>
           <dt>设备 / 操作</dt>
-          <dd>{{ selectedCommand.command.deviceId }} / {{ selectedCommand.command.type }}</dd>
+          <dd>
+            {{ selectedCommand.command.deviceId }} /
+            {{ selectedCommand.command.type === 'START' ? '启动' : '停止' }}
+          </dd>
         </div>
         <div>
           <dt>创建时间</dt>

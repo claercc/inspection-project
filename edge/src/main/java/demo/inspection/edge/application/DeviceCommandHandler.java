@@ -8,6 +8,7 @@ import demo.inspection.protocol.CommandType;
 import demo.inspection.protocol.Messages.Command;
 import demo.inspection.protocol.Messages.Result;
 import demo.inspection.protocol.Messages.Telemetry;
+import demo.inspection.support.ErrorMessages;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
@@ -75,7 +76,7 @@ public final class DeviceCommandHandler {
                 return result(
                     command,
                     CommandStatus.FAILED,
-                    "commandId reused with different payload",
+                    "命令编号重复，但命令内容不一致",
                     null
                 );
             }
@@ -102,17 +103,22 @@ public final class DeviceCommandHandler {
             robot.readState();
         } catch (Exception exception) {
             // 写入前的校验或探测失败，尚未尝试控制设备，可以确定为 FAILED。
-            return result(command, CommandStatus.FAILED, exception.getMessage(), null);
+            return result(command, CommandStatus.FAILED, ErrorMessages.describe(exception), null);
         }
 
         try {
             robot.writeControl(type);
         } catch (ModbusException exception) {
             // 设备明确返回写入异常码，可以确定此次写入被拒绝。
-            return result(command, CommandStatus.FAILED, exception.getMessage(), null);
+            return result(command, CommandStatus.FAILED, ErrorMessages.describe(exception), null);
         } catch (IOException exception) {
             // 写入应答可能只是丢失，设备可能已经动作；保持结果未知，不能自动重发。
-            return result(command, CommandStatus.RESULT_UNKNOWN, exception.getMessage(), null);
+            return result(
+                command,
+                CommandStatus.RESULT_UNKNOWN,
+                ErrorMessages.describe(exception),
+                null
+            );
         }
 
         try {
@@ -121,12 +127,17 @@ public final class DeviceCommandHandler {
             return result(
                 command,
                 CommandStatus.SUCCEEDED,
-                "FC06 write + FC03 device feedback confirmed",
+                "已通过 FC06 写入并经 FC03 读回确认",
                 feedback
             );
         } catch (IOException exception) {
             // 写入已经成功，后续读回失败（包括 Modbus 异常码）只能记为 RESULT_UNKNOWN。
-            return result(command, CommandStatus.RESULT_UNKNOWN, exception.getMessage(), null);
+            return result(
+                command,
+                CommandStatus.RESULT_UNKNOWN,
+                ErrorMessages.describe(exception),
+                null
+            );
         }
     }
 
@@ -147,7 +158,7 @@ public final class DeviceCommandHandler {
             command.createdAt().isAfter(now.plus(CLOCK_TOLERANCE)) ||
             command.expiresAt().isAfter(command.createdAt().plus(MAX_COMMAND_LIFETIME))
         ) {
-            throw new IllegalArgumentException("Command expired or invalid timestamps");
+            throw new IllegalArgumentException("命令已过期或时间字段无效");
         }
     }
 
@@ -166,7 +177,7 @@ public final class DeviceCommandHandler {
         if (
             feedback.lastControl() != expectedControl || !expectedState.equals(feedback.runState())
         ) {
-            throw new IOException("Device readback did not confirm control");
+            throw new IOException("设备读回状态与控制意图不一致");
         }
     }
 

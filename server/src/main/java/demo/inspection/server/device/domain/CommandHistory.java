@@ -50,7 +50,7 @@ public final class CommandHistory {
         );
         entries.put(
             command.commandId(),
-            new CommandView(command, CommandStatus.PENDING, "Preparing MQTT publication", now)
+            new CommandView(command, CommandStatus.PENDING, "正在准备发送 MQTT 命令", now)
         );
         trimCompletedEntries();
         return command;
@@ -94,7 +94,7 @@ public final class CommandHistory {
         updatePending(
             commandId,
             CommandStatus.SENT,
-            "MQTT QoS1 acknowledged; waiting for device readback",
+            "MQTT 消息服务已确认接收，正在等待设备读回",
             now
         );
     }
@@ -110,7 +110,7 @@ public final class CommandHistory {
         updatePending(
             commandId,
             CommandStatus.RESULT_UNKNOWN,
-            "Publication acknowledgement unavailable: " + error,
+            "未能确认消息发布结果：" + error,
             now
         );
     }
@@ -187,7 +187,7 @@ public final class CommandHistory {
             return new CommandView(
                 entry.command(),
                 CommandStatus.RESULT_UNKNOWN,
-                "No device feedback before deadline; inspect state before manual recovery",
+                "截止时间内未收到设备反馈，请检查设备状态后手动处理",
                 now
             );
         });

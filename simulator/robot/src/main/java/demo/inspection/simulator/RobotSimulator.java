@@ -1,6 +1,7 @@
 package demo.inspection.simulator;
 
 import demo.inspection.modbus.RobotRegisters;
+import demo.inspection.support.ErrorMessages;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -67,9 +68,9 @@ public final class RobotSimulator implements AutoCloseable {
         clients.submit(this::acceptConnections);
         clock.scheduleAtFixedRate(this::tick, 250, 250, TimeUnit.MILLISECONDS);
         System.out.println(
-            "SIMULATED robot Modbus TCP listening " +
+            "机器人模拟器 Modbus TCP 正在监听 " +
                 listener.getLocalSocketAddress() +
-                " unit=" +
+                "，设备单元=" +
                 unit
         );
     }
@@ -87,7 +88,7 @@ public final class RobotSimulator implements AutoCloseable {
                 clients.submit(() -> serve(socket));
             } catch (IOException exception) {
                 if (running) {
-                    System.err.println(exception);
+                    System.err.println("机器人连接处理失败：" + ErrorMessages.describe(exception));
                 }
             }
         }
@@ -147,7 +148,7 @@ public final class RobotSimulator implements AutoCloseable {
             }
         } catch (IOException exception) {
             if (running && !(exception instanceof SocketTimeoutException)) {
-                System.err.println("Robot TCP: " + exception.getMessage());
+                System.err.println("机器人 TCP 通信失败：" + ErrorMessages.describe(exception));
             }
         } finally {
             sockets.remove(socket);

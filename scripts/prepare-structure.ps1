@@ -1,4 +1,4 @@
-# Empty directories describe planned boundaries; no placeholder Java/Vue classes.
+﻿# Empty directories describe planned boundaries; no placeholder Java/Vue classes.
 $ErrorActionPreference = 'Stop'
 $projectDir = Split-Path -Parent $PSScriptRoot
 $directories = @(
@@ -28,4 +28,4 @@ foreach ($directory in $directories) {
         $created++
     }
 }
-Write-Output "Architecture directories ready: $($directories.Count) planned, $created newly created."
+Write-Output "工程目录已准备就绪：规划 $($directories.Count) 个，本次新建 $created 个。"

@@ -14,6 +14,20 @@ public enum CommandStatus {
     RESULT_UNKNOWN;
 
     /**
+     * 获取诊断中使用的中文状态说明，无参数；JSON 中的状态码保持不变。
+     * @return 当前命令阶段的中文说明。
+     */
+    public String displayName() {
+        return switch (this) {
+            case PENDING -> "准备发送";
+            case SENT -> "命令已发送";
+            case SUCCEEDED -> "设备反馈已确认";
+            case FAILED -> "执行失败";
+            case RESULT_UNKNOWN -> "执行结果未知";
+        };
+    }
+
+    /**
      * 判断本状态是否仍在等待发布或设备反馈，无参数。
      *
      * @return PENDING 或 SENT 返回 true，其余状态返回 false。

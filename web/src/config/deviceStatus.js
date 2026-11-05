@@ -1,6 +1,6 @@
 export const statusLabels = {
   ONLINE: '链路在线',
-  BROKER_OFFLINE: 'Broker 离线',
+  BROKER_OFFLINE: 'MQTT 消息服务离线',
   EDGE_STALE: '边缘数据已过期',
   ROBOT_OFFLINE: '机器人离线',
   SUCCEEDED: '设备反馈已确认',
